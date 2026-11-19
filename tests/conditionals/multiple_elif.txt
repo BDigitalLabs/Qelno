@@ -1,0 +1,18 @@
+set number = 3
+
+if number == 1
+    set result = "One"
+    cout result
+elif number == 2
+    set result = "Two"
+    cout result
+elif number == 3
+    set result = "Three"
+    cout result
+elif number == 4
+    set result = "Four"
+    cout result
+else
+    set result = "Unknown"
+    cout result
+end

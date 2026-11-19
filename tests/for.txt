@@ -1,0 +1,17 @@
+for i = 1 to 4
+    cout i
+end
+
+for j = 0 to 6 step 2
+    cout j
+end
+
+for k = 5 to 1 step -1
+    cout k
+end
+
+set start = 2
+set finish = 4
+for m = start to finish
+    cout m
+end

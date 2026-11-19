@@ -1,0 +1,7 @@
+def stop()
+    cout "called"
+    Exit()
+end
+
+stop()
+cout "after"

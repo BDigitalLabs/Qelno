@@ -1,0 +1,5 @@
+set a = "Should not execute"
+cout a
+
+if true
+    cout "Hello"

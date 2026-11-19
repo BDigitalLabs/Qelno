@@ -1,0 +1,45 @@
+set add_mul = 2+3*4
+cout add_mul
+
+set power = 2**3**2
+cout power
+
+set subtraction = 10-3-2
+cout subtraction
+
+set div_mul = 20/5*2
+cout div_mul
+
+set modulo = 10%3
+cout modulo
+
+set negative_multiplication = 10*-2
+cout negative_multiplication
+
+set subtract_negative = 5--2
+cout subtract_negative
+
+set decimal = 2.5+1.5
+cout decimal
+
+set parentheses = (2+3)*4
+cout parentheses
+
+set nested_parentheses = 2*(3+(4*5))
+cout nested_parentheses
+
+set negative_power = (-2)**2
+cout negative_power
+
+set unary_power = -2**2
+cout unary_power
+
+set abs_test = Abs(-5)
+cout abs_test
+
+set sqrt_test = Sqrt(81)
+cout sqrt_test
+
+set base = 7
+set variable_expression = base+5
+cout variable_expression

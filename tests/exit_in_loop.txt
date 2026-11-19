@@ -1,0 +1,6 @@
+set i = 0
+while true
+    cout i
+    Exit()
+end
+cout "after"

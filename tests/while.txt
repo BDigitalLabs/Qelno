@@ -1,0 +1,11 @@
+set count = 0
+while count < 4
+    cout count
+    count = count + 1
+end
+
+set a = 3
+while a > 0
+    cout a
+    set a = a - 1
+end

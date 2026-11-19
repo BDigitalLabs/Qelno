@@ -1,0 +1,15 @@
+set age = 20
+set score = 90
+
+if age >= 18
+    if score >= 85
+        set result = "Accepted"
+        cout result
+    else
+        set result = "Rejected"
+        cout result
+    end
+else
+    set result = "Underage"
+    cout result
+end

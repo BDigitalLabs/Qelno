@@ -1,0 +1,4 @@
+set a = "Should not execute"
+cout a
+
+end

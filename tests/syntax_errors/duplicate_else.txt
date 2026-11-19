@@ -1,0 +1,10 @@
+set a = "Should not execute"
+cout a
+
+if true
+    cout "First"
+else
+    cout "Second"
+else
+    cout "Third"
+end

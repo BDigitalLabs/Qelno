@@ -1,0 +1,9 @@
+set age = 16
+
+if age >= 18
+    set a = "Adult"
+    cout a
+else
+    set b = "Underage"
+    cout b
+end

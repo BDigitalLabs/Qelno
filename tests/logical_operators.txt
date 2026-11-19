@@ -1,0 +1,56 @@
+set test1 = not false
+cout test1
+
+set test2 = not true
+cout test2
+
+set test3 = not (5 < 3)
+cout test3
+
+set test4 = true and true
+cout test4
+
+set test5 = true and false
+cout test5
+
+set test6 = false or true
+cout test6
+
+set test7 = false or false
+cout test7
+
+set test8 = not false and true
+cout test8
+
+set test9 = true or false and false
+cout test9
+
+set test10 = false or true and false
+cout test10
+
+set test11 = (true or false) and false
+cout test11
+
+set test12 = (5 > 3) and (2 < 4)
+cout test12
+
+set test13 = (5 < 3) or (2 == 2)
+cout test13
+
+set test14 = not (5 < 3) and (2 < 4)
+cout test14
+
+set test15 = not(5<3)
+cout test15
+
+set bool_true = true
+set bool_false = false
+
+set test16 = bool_true and bool_false
+cout test16
+
+set test17 = bool_true or bool_false
+cout test17
+
+set test18 = not bool_false
+cout test18

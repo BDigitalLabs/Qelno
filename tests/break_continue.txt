@@ -1,0 +1,35 @@
+# While loop with break
+set i = 0
+while i < 10
+    i = i + 1
+    if i == 5
+        break
+    end
+    cout i
+end
+
+# While loop with continue
+set j = 0
+while j < 5
+    j = j + 1
+    if j == 3
+        continue
+    end
+    cout j
+end
+
+# For loop with break
+for k = 1 to 10
+    if k == 4
+        break
+    end
+    cout k
+end
+
+# For loop with continue
+for m = 1 to 5
+    if m == 3
+        continue
+    end
+    cout m
+end

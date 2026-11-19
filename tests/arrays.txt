@@ -1,0 +1,69 @@
+# Array initialization
+set empty = []
+cout empty
+cout Len(empty)
+cout TypeOf(empty)
+
+set numbers = [10, 20, 30]
+cout numbers
+cout Len(numbers)
+cout TypeOf(numbers)
+
+# Mixed array
+set mixed = [1, "hello", true]
+cout mixed
+
+# Array indexing
+cout numbers[0]
+cout numbers[1]
+cout numbers[2]
+cout mixed[1]
+cout mixed[2]
+
+# Math operations with array elements
+set sum = numbers[0] + numbers[1]
+cout sum
+cout numbers[2] * 2
+
+# Index assignment
+numbers[1] = 99
+cout numbers
+cout numbers[1]
+
+# Dynamic index via variable
+set idx = 2
+numbers[idx] = 100
+cout numbers[2]
+cout numbers
+
+# Array iteration
+set items = [100, 200, 300]
+for i = 0 to Len(items) - 1
+    cout items[i]
+end
+
+# Push and Pop operations
+set stack = []
+Push(stack, 1)
+Push(stack, 2)
+Push(stack, 3)
+cout stack
+cout Len(stack)
+
+set top = Pop(stack)
+cout top
+cout stack
+cout Len(stack)
+
+# Array in function
+def doubleList(list)
+    set result = []
+    for i = 0 to Len(list) - 1
+        Push(result, list[i] * 2)
+    end
+    return result
+end
+
+set inputList = [1, 2, 3]
+set doubledList = doubleList(inputList)
+cout doubledList

@@ -1,0 +1,1 @@
+set res = bilinmeyen(10, 20)

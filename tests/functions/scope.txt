@@ -1,0 +1,36 @@
+set x = 100
+set y = 200
+
+def test_scope(x)
+    cout x
+    set y = 999
+    cout y
+end
+
+test_scope(50)
+cout x
+cout y
+
+def create_local()
+    set local_var = 42
+    cout local_var
+end
+
+create_local()
+
+set counter = 10
+
+def inc()
+    counter = counter + 1
+end
+
+inc()
+inc()
+cout counter
+
+def reassign_param(p)
+    p = p + 5
+    return p
+end
+
+cout reassign_param(10)

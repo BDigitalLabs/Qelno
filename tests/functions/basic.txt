@@ -1,0 +1,38 @@
+def greet()
+    cout "Hello from function"
+end
+
+greet()
+
+def add(a, b)
+    return a + b
+end
+
+set s = add(10, 25)
+cout s
+
+set comp = add(2, 3) * 4
+cout comp
+
+def get_msg(name)
+    return name
+end
+
+set msg = get_msg("Antigravity")
+cout msg
+
+cout add(100, 200)
+
+def sign(x)
+    if x > 0
+        return "positive"
+    elif x < 0
+        return "negative"
+    else
+        return "zero"
+    end
+end
+
+cout sign(5)
+cout sign(-3)
+cout sign(0)

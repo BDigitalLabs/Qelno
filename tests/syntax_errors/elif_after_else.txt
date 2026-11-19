@@ -1,0 +1,7 @@
+if false
+    cout "First"
+else
+    cout "Second"
+elif true
+    cout "Third"
+end

@@ -1,0 +1,21 @@
+Hello World
+Number: 42
+Status: true
+Direct: 30
+true
+false
+true
+false
+true
+11
+0
+5
+10
+LOWERCASE TEXT
+uppercase text
+HELLO WORLD
+hello world
+Anti
+gravity
+gravity
+

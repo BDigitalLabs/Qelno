@@ -1,0 +1,3 @@
+cout "before"
+Exit()
+cout "after"
