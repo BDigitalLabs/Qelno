@@ -2,17 +2,17 @@ set number = 3
 
 if number == 1
     set result = "One"
-    cout result
+    Cout(result)
 elif number == 2
     set result = "Two"
-    cout result
+    Cout(result)
 elif number == 3
     set result = "Three"
-    cout result
+    Cout(result)
 elif number == 4
     set result = "Four"
-    cout result
+    Cout(result)
 else
     set result = "Unknown"
-    cout result
+    Cout(result)
 end

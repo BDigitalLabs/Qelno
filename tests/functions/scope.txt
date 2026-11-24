@@ -2,18 +2,18 @@ set x = 100
 set y = 200
 
 def test_scope(x)
-    cout x
+    Cout(x)
     set y = 999
-    cout y
+    Cout(y)
 end
 
 test_scope(50)
-cout x
-cout y
+Cout(x)
+Cout(y)
 
 def create_local()
     set local_var = 42
-    cout local_var
+    Cout(local_var)
 end
 
 create_local()
@@ -26,11 +26,11 @@ end
 
 inc()
 inc()
-cout counter
+Cout(counter)
 
 def reassign_param(p)
     p = p + 5
     return p
 end
 
-cout reassign_param(10)
+Cout(reassign_param(10))

@@ -1,5 +1,5 @@
 if true
-    cout "inside"
+    Cout("inside")
     Exit()
 end
-cout "after"
+Cout("after")

@@ -1,8 +1,52 @@
-using System;
-using System.Collections.Generic;
+namespace Qelno.Parsing;
+
+using Qelno.Core;
+using Qelno.Instructions;
+using Qelno.Compilation;
+using Qelno.Runtime;
 
 public partial class ExpressionParser
 {
+    public static bool IsSingleArrayLiteral(string source)
+    {
+        string trimmed = source.Trim();
+        if (trimmed.Length < 2 || trimmed[0] != '[' || !trimmed.EndsWith(']'))
+            return false;
+
+        int depth = 0;
+        char inString = '\0';
+        for (int i = 0; i < trimmed.Length; i++)
+        {
+            char c = trimmed[i];
+            if (inString != '\0')
+            {
+                if (c == '\\' && i + 1 < trimmed.Length)
+                {
+                    i++;
+                }
+                else if (c == inString) inString = '\0';
+            }
+            else if (c == '"' || c == '\'')
+            {
+                inString = c;
+            }
+            else if (c == '[')
+            {
+                depth++;
+            }
+            else if (c == ']')
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    return i == trimmed.Length - 1;
+                }
+            }
+        }
+
+        return false;
+    }
+
     public static bool IsSingleIndexAccess(string source)
     {
         string trimmed = source.Trim();
@@ -21,7 +65,11 @@ public partial class ExpressionParser
             char c = trimmed[i];
             if (inString != '\0')
             {
-                if (c == inString) inString = '\0';
+                if (c == '\\' && i + 1 < trimmed.Length)
+                {
+                    i++;
+                }
+                else if (c == inString) inString = '\0';
             }
             else if (c == '"' || c == '\'')
             {
@@ -45,9 +93,9 @@ public partial class ExpressionParser
     }
 
     public (InterpreterResult interpreterResult, string? subject)
-        EvaluateIndexAccess(string accessStr, out object? result)
+        EvaluateIndexAccess(string accessStr, out Value result)
     {
-        result = null;
+        result = Value.Null;
         string trimmed = accessStr.Trim();
         int openBracket = trimmed.IndexOf('[');
         if (openBracket <= 0 || !trimmed.EndsWith(']'))
@@ -59,32 +107,36 @@ public partial class ExpressionParser
         if (indexExpr.Length == 0)
             return (InterpreterResult.InvalidSyntax, accessStr);
 
-        if (!variables.TryGetVariable(varName, out object? targetObj) || targetObj == null)
+        if (!variables.TryGetVariable(varName, out Value targetVal))
             return (InterpreterResult.VariableNotFound, varName);
 
-        var evalIndex = EvaluateExpression(new List<string> { indexExpr }, out object? indexVal);
+        var evalIndex = EvaluateExpression(new List<string> { indexExpr }, out Value indexVal);
         if (evalIndex.interpreterResult != InterpreterResult.Success)
             return evalIndex;
 
         if (!FunctionRegistry.TryGetDouble(indexVal, out double idxD))
             return (InterpreterResult.InvalidValue, indexExpr);
 
+        if (double.IsNaN(idxD) || double.IsInfinity(idxD) || idxD % 1 != 0)
+            return (InterpreterResult.InvalidValue, indexExpr);
+
         int index = (int)idxD;
 
-        if (targetObj is List<object> list)
+        if (targetVal.IsArray && targetVal.ArrayRef is { } valList)
         {
-            if (index < 0 || index >= list.Count)
-                return (InterpreterResult.InvalidValue, $"Index {index} out of range [0..{list.Count - 1}]");
+            if (index < 0 || index >= valList.Count)
+                return (InterpreterResult.InvalidValue, $"Index {index} out of range [0..{valList.Count - 1}]");
 
-            result = list[index];
+            result = valList[index];
             return (InterpreterResult.Success, null);
         }
-        else if (targetObj is string str)
+        else if (targetVal.IsString)
         {
+            string str = targetVal.AsString();
             if (index < 0 || index >= str.Length)
                 return (InterpreterResult.InvalidValue, $"Index {index} out of range [0..{str.Length - 1}]");
 
-            result = str[index].ToString();
+            result = Value.FromString(str[index].ToString());
             return (InterpreterResult.Success, null);
         }
 
@@ -92,18 +144,18 @@ public partial class ExpressionParser
     }
 
     public (InterpreterResult interpreterResult, string? subject)
-        ParseArrayLiteral(string source, out object? result)
+        ParseArrayLiteral(string source, out Value result)
     {
-        result = null;
+        result = Value.Null;
         string trimmed = source.Trim();
-        if (!trimmed.StartsWith('[') || !trimmed.EndsWith(']'))
+        if (!IsSingleArrayLiteral(trimmed))
             return (InterpreterResult.InvalidSyntax, source);
 
         string inner = trimmed[1..^1].Trim();
-        List<object> list = new();
+        List<Value> list = new();
         if (inner.Length == 0)
         {
-            result = list;
+            result = Value.FromArray(list);
             return (InterpreterResult.Success, null);
         }
 
@@ -115,53 +167,51 @@ public partial class ExpressionParser
                 return (InterpreterResult.InvalidSyntax, source);
 
             // String literal?
-            if (item.Length >= 2 &&
-                ((item[0] == '"' && item[^1] == '"' && !item[1..^1].Contains('"')) ||
-                 (item[0] == '\'' && item[^1] == '\'' && !item[1..^1].Contains('\''))))
+            if (InstructionHelper.IsValidStringLiteral(item))
             {
-                list.Add(item[1..^1]);
+                list.Add(Value.FromString(InstructionHelper.Unescape(item[1..^1])));
                 continue;
             }
 
             // Boolean literal?
             if (item == LanguageNames.True)
             {
-                list.Add(true);
+                list.Add(Value.True);
                 continue;
             }
             if (item == LanguageNames.False)
             {
-                list.Add(false);
+                list.Add(Value.False);
                 continue;
             }
 
             // Nested array literal?
-            if (item.StartsWith('[') && item.EndsWith(']'))
+            if (IsSingleArrayLiteral(item))
             {
-                var nestedRes = ParseArrayLiteral(item, out object? nestedArray);
+                var nestedRes = ParseArrayLiteral(item, out Value nestedArray);
                 if (nestedRes.interpreterResult != InterpreterResult.Success)
                     return nestedRes;
 
-                list.Add(nestedArray!);
+                list.Add(nestedArray);
                 continue;
             }
 
             // Variable?
-            if (variables.TryGetVariable(item, out object? varVal) && !item.Contains('(') && !item.Contains('['))
+            if (variables.TryGetVariable(item, out Value varVal) && !item.Contains('(') && !item.Contains('['))
             {
-                list.Add(varVal!);
+                list.Add(varVal);
                 continue;
             }
 
             // Evaluate as an expression
-            var evalRes = EvaluateExpression(new List<string> { item }, out object? itemVal);
+            var evalRes = EvaluateExpression(new List<string> { item }, out Value itemVal);
             if (evalRes.interpreterResult != InterpreterResult.Success)
                 return evalRes;
 
-            list.Add(itemVal!);
+            list.Add(itemVal);
         }
 
-        result = list;
+        result = Value.FromArray(list);
         return (InterpreterResult.Success, null);
     }
 }

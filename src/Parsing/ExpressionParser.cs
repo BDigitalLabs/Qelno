@@ -1,25 +1,21 @@
-using System;
-using System.Collections.Generic;
+namespace Qelno.Parsing;
+
+using Qelno.Core;
+using Qelno.Instructions;
+using Qelno.Runtime;
 using System.Globalization;
 
 public partial class ExpressionParser
 {
     private readonly Variables variables;
-    private readonly Builtins builtins;
-    private readonly NumericArgumentResolver numericArgumentResolver;
     private ExecutionContext? context;
 
     public ExpressionParser(
         Variables variables,
-        Builtins builtins,
         ExecutionContext? context = null)
     {
         this.variables = variables;
-        this.builtins = builtins;
         this.context = context;
-        numericArgumentResolver = new NumericArgumentResolver(
-            variables,
-            builtins);
     }
 
     public void SetContext(ExecutionContext ctx)
@@ -48,6 +44,13 @@ public partial class ExpressionParser
                 continue;
             }
 
+            // Array literal?
+            if (IsSingleArrayLiteral(token))
+            {
+                resolved.Add(token);
+                continue;
+            }
+
             // String literal?
             if (token.Length >= 2 &&
                 ((token[0] == '"' && token[^1] == '"') ||
@@ -61,29 +64,35 @@ public partial class ExpressionParser
             int openParen = token.IndexOf('(');
             if (openParen > 0 && token.EndsWith(')'))
             {
-                var funcEvalResult = EvaluateFunctionCall(token, out object? funcResult);
+                var funcEvalResult = EvaluateFunctionCall(token, out Value? funcResult);
                 if (funcEvalResult.interpreterResult != InterpreterResult.Success)
                     return funcEvalResult;
 
-                if (funcResult is bool b)
+                if (!funcResult.HasValue || funcResult.Value.IsNull)
                 {
-                    resolved.Add(b ? "true" : "false");
+                    return (InterpreterResult.InvalidValue, token);
                 }
-                else if (funcResult is string s)
+
+                Value v = funcResult.Value;
+                if (v.IsBool)
                 {
-                    resolved.Add($"\"{s}\"");
+                    resolved.Add(v.AsBool() ? "true" : "false");
                 }
-                else if (FunctionRegistry.TryGetDouble(funcResult, out double num))
+                else if (v.IsString)
                 {
-                    resolved.Add(num.ToString("R", CultureInfo.InvariantCulture));
+                    resolved.Add($"\"{v.AsString()}\"");
                 }
-                else if (funcResult != null)
+                else if (v.IsInteger)
                 {
-                    resolved.Add(funcResult.ToString()!);
+                    resolved.Add(v.AsInteger().ToString(CultureInfo.InvariantCulture));
+                }
+                else if (v.IsFloat)
+                {
+                    resolved.Add(v.AsFloat().ToString("R", CultureInfo.InvariantCulture));
                 }
                 else
                 {
-                    resolved.Add("0");
+                    resolved.Add(v.ToString());
                 }
                 continue;
             }
@@ -91,86 +100,80 @@ public partial class ExpressionParser
             // Index access? (e.g.: arr[0], arr[i + 1])
             if (IsSingleIndexAccess(token))
             {
-                var indexEvalResult = EvaluateIndexAccess(token, out object? indexResult);
+                var indexEvalResult = EvaluateIndexAccess(token, out Value indexResult);
                 if (indexEvalResult.interpreterResult != InterpreterResult.Success)
                     return indexEvalResult;
 
-                if (indexResult is bool b)
-                {
-                    resolved.Add(b ? "true" : "false");
-                }
-                else if (indexResult is string s)
-                {
-                    resolved.Add($"\"{s}\"");
-                }
-                else if (FunctionRegistry.TryGetDouble(indexResult, out double num))
-                {
-                    resolved.Add(num.ToString("R", CultureInfo.InvariantCulture));
-                }
-                else if (indexResult != null)
-                {
-                    resolved.Add(indexResult.ToString()!);
-                }
-                else
-                {
-                    resolved.Add("0");
-                }
+                if (indexResult.IsBool) resolved.Add(indexResult.AsBool() ? "true" : "false");
+                else if (indexResult.IsString) resolved.Add($"\"{indexResult.AsString()}\"");
+                else if (indexResult.IsInteger) resolved.Add(indexResult.AsInteger().ToString(CultureInfo.InvariantCulture));
+                else if (indexResult.IsFloat) resolved.Add(indexResult.AsFloat().ToString("R", CultureInfo.InvariantCulture));
+                else resolved.Add(indexResult.ToString());
                 continue;
             }
 
-            if (variables.TryGetVariable(token, out object? value))
+            if (variables.TryGetVariable(token, out Value val))
             {
-                if (value is bool booleanValue)
-                {
-                    resolved.Add(booleanValue ? "true" : "false");
-                    continue;
-                }
-
-                if (value is string stringValue)
-                {
-                    resolved.Add($"\"{stringValue}\"");
-                    continue;
-                }
+                if (val.IsBool) { resolved.Add(val.AsBool() ? "true" : "false"); continue; }
+                if (val.IsString) { resolved.Add($"\"{val.AsString()}\""); continue; }
+                if (val.IsInteger) { resolved.Add(val.AsInteger().ToString(CultureInfo.InvariantCulture)); continue; }
+                if (val.IsFloat) { resolved.Add(val.AsFloat().ToString("R", CultureInfo.InvariantCulture)); continue; }
+                resolved.Add(val.ToString());
+                continue;
             }
 
-            var result =
-                numericArgumentResolver.ResolveNumericArgument(
-                    token,
-                    out double number);
+            if (long.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+            {
+                resolved.Add(token);
+                continue;
+            }
 
-            if (result.interpreterResult != InterpreterResult.Success)
-                return result;
+            if (double.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out double number))
+            {
+                resolved.Add(number.ToString("R", CultureInfo.InvariantCulture));
+                continue;
+            }
 
-            resolved.Add(
-                number.ToString(
-                    "R",
-                    CultureInfo.InvariantCulture));
+            return (InterpreterResult.VariableNotFound, token);
         }
 
         return (InterpreterResult.Success, null);
     }
 
     public (InterpreterResult interpreterResult, string? subject)
-        EvaluateExpression(List<string>? parts, out object? result)
+        EvaluateExpression(List<string>? parts, out Value result)
     {
-        result = null;
+        result = Value.Null;
         if (parts == null || parts.Count == 0)
             return (InterpreterResult.PartsAreEmptyOrNull, null);
+
+        // Compiled expressions are executed directly on the Value stack.
+        if (context != null &&
+            ExpressionCompiler.TryCompile(parts, out CompiledExpression compiled))
+        {
+            return CompiledExpressionEvaluator.Evaluate(compiled, context, out result);
+        }
+
+        return EvaluateExpressionLegacy(parts, out result);
+    }
+
+    private (InterpreterResult interpreterResult, string? subject)
+        EvaluateExpressionLegacy(List<string> parts, out Value result)
+    {
+        result = Value.Null;
 
         string source = string.Join(" ", parts).Trim();
 
         // Array literal?
-        if (source.StartsWith('[') && source.EndsWith(']'))
+        if (IsSingleArrayLiteral(source))
         {
             return ParseArrayLiteral(source, out result);
         }
 
         // Single quoted string literal?
-        if (source.Length >= 2 &&
-            ((source[0] == '"' && source[^1] == '"' && !source[1..^1].Contains('"')) ||
-             (source[0] == '\'' && source[^1] == '\'' && !source[1..^1].Contains('\''))))
+        if (InstructionHelper.IsValidStringLiteral(source))
         {
-            result = source[1..^1];
+            result = Value.FromString(InstructionHelper.Unescape(source[1..^1]));
             return (InterpreterResult.Success, null);
         }
 
@@ -181,7 +184,7 @@ public partial class ExpressionParser
         }
 
         // Single variable?
-        if (parts.Count == 1 && variables.TryGetVariable(source, out object? varVal))
+        if (parts.Count == 1 && variables.TryGetVariable(source, out Value varVal))
         {
             result = varVal;
             return (InterpreterResult.Success, null);
@@ -190,7 +193,9 @@ public partial class ExpressionParser
         // Single function call?
         if (IsSingleFunctionCall(source))
         {
-            return EvaluateFunctionCall(source, out result);
+            var fRes = EvaluateFunctionCall(source, out Value? fVal);
+            result = fVal ?? Value.Null;
+            return fRes;
         }
 
         return EvaluateExpressionTokens(parts, out result);
@@ -199,9 +204,9 @@ public partial class ExpressionParser
     private (InterpreterResult interpreterResult, string? subject)
     EvaluateExpressionTokens(
         List<string>? parts,
-        out object? result)
+        out Value result)
     {
-        result = null;
+        result = Value.Null;
 
         if (parts == null || parts.Count == 0)
             return (InterpreterResult.PartsAreEmptyOrNull, null);
@@ -215,6 +220,158 @@ public partial class ExpressionParser
         if (tokenizationResult.interpreterResult != InterpreterResult.Success)
             return tokenizationResult;
 
+        return EvaluateTokensWithShortCircuit(tokens, out result);
+    }
+
+    private (InterpreterResult interpreterResult, string? subject)
+        EvaluateTokensWithShortCircuit(List<string> tokens, out Value result)
+    {
+        result = Value.Null;
+        if (tokens.Count == 0)
+            return (InterpreterResult.PartsAreEmptyOrNull, null);
+
+        // 1. Check for "or" at depth 0
+        int depth = 0;
+        List<int> orIndices = new();
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            string t = tokens[i];
+            if (t == "(") depth++;
+            else if (t == ")") depth--;
+            else if (depth == 0 && t == "or")
+                orIndices.Add(i);
+        }
+
+        if (orIndices.Count > 0)
+        {
+            int start = 0;
+            foreach (int orIdx in orIndices)
+            {
+                if (orIdx == start)
+                    return (InterpreterResult.InvalidSyntax, "or");
+
+                var slice = tokens.GetRange(start, orIdx - start);
+                var evalRes = EvaluateTokensWithShortCircuit(slice, out Value sliceVal);
+                if (evalRes.interpreterResult != InterpreterResult.Success)
+                    return evalRes;
+
+                if (!sliceVal.IsBool)
+                    return (InterpreterResult.InvalidValue, "or");
+
+                if (sliceVal.AsBool())
+                {
+                    result = Value.True;
+                    return (InterpreterResult.Success, null);
+                }
+
+                start = orIdx + 1;
+            }
+
+            if (start >= tokens.Count)
+                return (InterpreterResult.InvalidSyntax, "or");
+
+            var lastSlice = tokens.GetRange(start, tokens.Count - start);
+            var lastRes = EvaluateTokensWithShortCircuit(lastSlice, out Value lastVal);
+            if (lastRes.interpreterResult != InterpreterResult.Success)
+                return lastRes;
+
+            if (!lastVal.IsBool)
+                return (InterpreterResult.InvalidValue, "or");
+
+            result = Value.FromBool(lastVal.AsBool());
+            return (InterpreterResult.Success, null);
+        }
+
+        // 2. Check for "and" at depth 0
+        depth = 0;
+        List<int> andIndices = new();
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            string t = tokens[i];
+            if (t == "(") depth++;
+            else if (t == ")") depth--;
+            else if (depth == 0 && t == "and")
+                andIndices.Add(i);
+        }
+
+        if (andIndices.Count > 0)
+        {
+            int start = 0;
+            foreach (int andIdx in andIndices)
+            {
+                if (andIdx == start)
+                    return (InterpreterResult.InvalidSyntax, "and");
+
+                var slice = tokens.GetRange(start, andIdx - start);
+                var evalRes = EvaluateTokensWithShortCircuit(slice, out Value sliceVal);
+                if (evalRes.interpreterResult != InterpreterResult.Success)
+                    return evalRes;
+
+                if (!sliceVal.IsBool)
+                    return (InterpreterResult.InvalidValue, "and");
+
+                if (!sliceVal.AsBool())
+                {
+                    result = Value.False;
+                    return (InterpreterResult.Success, null);
+                }
+
+                start = andIdx + 1;
+            }
+
+            if (start >= tokens.Count)
+                return (InterpreterResult.InvalidSyntax, "and");
+
+            var lastSlice = tokens.GetRange(start, tokens.Count - start);
+            var lastRes = EvaluateTokensWithShortCircuit(lastSlice, out Value lastVal);
+            if (lastRes.interpreterResult != InterpreterResult.Success)
+                return lastRes;
+
+            if (!lastVal.IsBool)
+                return (InterpreterResult.InvalidValue, "and");
+
+            result = Value.FromBool(lastVal.AsBool());
+            return (InterpreterResult.Success, null);
+        }
+
+        // 3. Strip redundant outer parentheses if matching
+        if (tokens.Count >= 2 && tokens[0] == "(" && tokens[^1] == ")")
+        {
+            int parenDepth = 0;
+            bool wrapsAll = true;
+            for (int i = 0; i < tokens.Count - 1; i++)
+            {
+                if (tokens[i] == "(") parenDepth++;
+                else if (tokens[i] == ")") parenDepth--;
+                if (parenDepth == 0)
+                {
+                    wrapsAll = false;
+                    break;
+                }
+            }
+
+            if (wrapsAll)
+            {
+                return EvaluateTokensWithShortCircuit(tokens.GetRange(1, tokens.Count - 2), out result);
+            }
+        }
+
+        // 4. Check for leading "not" at depth 0
+        if (tokens.Count > 1 && tokens[0] == "not")
+        {
+            var notSlice = tokens.GetRange(1, tokens.Count - 1);
+            var evalRes = EvaluateTokensWithShortCircuit(notSlice, out Value notVal);
+            if (evalRes.interpreterResult != InterpreterResult.Success)
+                return evalRes;
+
+            if (!notVal.IsBool)
+                return (InterpreterResult.InvalidValue, "not");
+
+            result = Value.FromBool(!notVal.AsBool());
+            return (InterpreterResult.Success, null);
+        }
+
+        // 5. Base case: evaluate tokens using postfix evaluator
         var resolutionResult = ResolveTokens(
             tokens,
             out List<string> resolved);
@@ -226,10 +383,14 @@ public partial class ExpressionParser
             resolved,
             out List<string> postfix))
         {
-            return (InterpreterResult.InvalidSyntax, source);
+            return (InterpreterResult.InvalidSyntax, string.Join(" ", tokens));
         }
 
-        return ExpressionEvaluator.EvaluateExpression(postfix, out result);
+        return ExpressionEvaluator.EvaluateExpression(postfix, out result, str =>
+        {
+            var res = ParseArrayLiteral(str, out Value arrVal);
+            return (res.interpreterResult, arrVal);
+        });
     }
 
     public (InterpreterResult interpreterResult, string? subject)
@@ -237,15 +398,15 @@ public partial class ExpressionParser
     {
         var evaluationResult = EvaluateExpression(
             parts,
-            out object? result);
+            out Value result);
 
         if (evaluationResult.interpreterResult != InterpreterResult.Success)
             return evaluationResult;
 
-        if (result == null)
+        if (result.IsNull)
             return (InterpreterResult.InvalidValue, string.Join(" ", parts ?? new List<string>()));
 
-        variables.SetVariable(name, result!, requirePreexisting);
+        variables.SetVariable(name, result, requirePreexisting);
 
         return (InterpreterResult.Success, null);
     }
@@ -257,18 +418,18 @@ public partial class ExpressionParser
 
         var evaluationResult = EvaluateExpression(
             parts,
-            out object? result);
+            out Value result);
 
         if (evaluationResult.interpreterResult != InterpreterResult.Success)
             return evaluationResult;
 
-        if (result is not bool boolResult)
+        if (!result.IsBool)
             return (
                 InterpreterResult.InvalidValue,
                 string.Join(" ", parts!)
             );
 
-        condition = boolResult;
+        condition = result.AsBool();
 
         return (InterpreterResult.Success, null);
     }

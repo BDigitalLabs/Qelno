@@ -1,6 +1,9 @@
-using System;
-using System.Collections.Generic;
+namespace Qelno.Compilation;
 
+using Qelno.Core;
+using Qelno.Instructions;
+using Qelno.Runtime;
+using Qelno.Parsing;
 public static class Compiler
 {
     public static (InterpreterResult result, string? subject, int? lineNumber, List<Instruction>? instructions) Compile(
@@ -15,19 +18,15 @@ public static class Compiler
         {
             lineNumber++;
 
-            List<string> parts = new List<string>(
-                rawLine.Split(
-                    (char[]?)null,
-                    StringSplitOptions.RemoveEmptyEntries
-                )
-            );
+            string line = InstructionHelper.StripComment(rawLine);
+            List<string> parts = InstructionHelper.SplitLinePreservingQuotes(line);
 
             if (parts.Count == 0 || parts[0].StartsWith(LanguageNames.OneLineComment))
                 continue;
 
             (InterpreterResult result, string? subject) stepResult = parts[0] switch
             {
-                LanguageNames.Def => CompileDef(rawLine, lineNumber, blocks, ref currentInstructions),
+                LanguageNames.Def => CompileDef(line, lineNumber, blocks, ref currentInstructions),
                 LanguageNames.Return => CompileReturn(parts, lineNumber, blocks, currentInstructions),
                 LanguageNames.Break or LanguageNames.Continue => CompileBreakContinue(parts, lineNumber, blocks, currentInstructions),
                 LanguageNames.If => CompileIf(parts, lineNumber, blocks, currentInstructions),
@@ -37,7 +36,6 @@ public static class Compiler
                 LanguageNames.Else => CompileElse(parts, lineNumber, blocks, currentInstructions),
                 LanguageNames.End => CompileEnd(parts, lineNumber, blocks, ref currentInstructions),
                 LanguageNames.Set => CompileSet(parts, lineNumber, currentInstructions),
-                LanguageNames.Cout => CompileCout(parts, lineNumber, currentInstructions),
                 _ => CompileDefault(parts, lineNumber, currentInstructions)
             };
 
@@ -49,7 +47,25 @@ public static class Compiler
 
         if (blocks.Count > 0)
         {
-            return (InterpreterResult.InvalidSyntax, LanguageNames.End, lineNumber, null);
+            return (InterpreterResult.InvalidSyntax, LanguageNames.End, blocks.Peek().LineNumber, null);
+        }
+
+        foreach (var instr in mainInstructions)
+        {
+            if (instr is JumpInstruction jump && jump.TargetIndex < 0)
+                return (InterpreterResult.InvalidSyntax, "Unpatched jump", lineNumber, null);
+            if (instr is JumpIfFalseInstruction jif && jif.TargetIndex < 0)
+                return (InterpreterResult.InvalidSyntax, "Unpatched jump", lineNumber, null);
+            if (instr is DefineFunctionInstruction defInstr)
+            {
+                foreach (var bodyInstr in defInstr.Function.Body)
+                {
+                    if (bodyInstr is JumpInstruction bj && bj.TargetIndex < 0)
+                        return (InterpreterResult.InvalidSyntax, "Unpatched jump", lineNumber, null);
+                    if (bodyInstr is JumpIfFalseInstruction bjif && bjif.TargetIndex < 0)
+                        return (InterpreterResult.InvalidSyntax, "Unpatched jump", lineNumber, null);
+                }
+            }
         }
 
         return (InterpreterResult.Success, null, null, mainInstructions);
@@ -97,7 +113,10 @@ public static class Compiler
 
         List<string> returnParts = parts.Count > 1 ? parts.GetRange(1, parts.Count - 1) : new List<string>();
 
-        currentInstructions.Add(new ReturnInstruction(returnParts, lineNumber));
+        currentInstructions.Add(new ReturnInstruction(
+            returnParts,
+            lineNumber,
+            TryCompileExpression(returnParts)));
         return (InterpreterResult.Success, null);
     }
 
@@ -154,7 +173,11 @@ public static class Compiler
             return (InterpreterResult.InvalidSyntax, LanguageNames.If);
 
         List<string> conditionParts = parts.GetRange(1, parts.Count - 1);
-        var jif = new JumpIfFalseInstruction(conditionParts, targetIndex: -1, lineNumber);
+        var jif = new JumpIfFalseInstruction(
+            conditionParts,
+            targetIndex: -1,
+            lineNumber,
+            TryCompileExpression(conditionParts));
         currentInstructions.Add(jif);
 
         blocks.Push(new IfBlockInfo
@@ -176,7 +199,11 @@ public static class Compiler
 
         int loopStartIndex = currentInstructions.Count;
         List<string> conditionParts = parts.GetRange(1, parts.Count - 1);
-        var jif = new JumpIfFalseInstruction(conditionParts, targetIndex: -1, lineNumber);
+        var jif = new JumpIfFalseInstruction(
+            conditionParts,
+            targetIndex: -1,
+            lineNumber,
+            TryCompileExpression(conditionParts));
         currentInstructions.Add(jif);
 
         blocks.Push(new WhileBlockInfo
@@ -199,11 +226,15 @@ public static class Compiler
             return (InterpreterResult.InvalidSyntax, string.Join(" ", parts));
 
         string varName = parts[1];
+        if (!SyntaxValidator.IsValidIdentifier(varName) || LanguageNames.Contains(varName))
+            return (InterpreterResult.InvalidSyntax, varName);
+
         List<string> startParts = parts.GetRange(3, toIndex - 3);
         string startText = string.Join(" ", startParts);
 
         int stepIndex = parts.IndexOf(LanguageNames.Step);
         List<string> endParts;
+        List<string> stepParts = new() { "1" };
         string stepText = "1";
 
         if (stepIndex != -1)
@@ -212,32 +243,67 @@ public static class Compiler
                 return (InterpreterResult.InvalidSyntax, string.Join(" ", parts));
 
             endParts = parts.GetRange(toIndex + 1, stepIndex - (toIndex + 1));
-            List<string> stepParts = parts.GetRange(stepIndex + 1, parts.Count - (stepIndex + 1));
+            stepParts = parts.GetRange(stepIndex + 1, parts.Count - (stepIndex + 1));
             stepText = string.Join(" ", stepParts);
+
+            if (double.TryParse(stepText.Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double parsedStep) && parsedStep == 0.0)
+            {
+                return (InterpreterResult.InvalidValue, stepText.Trim());
+            }
         }
         else
         {
             endParts = parts.GetRange(toIndex + 1, parts.Count - (toIndex + 1));
         }
 
-        currentInstructions.Add(new SetInstruction(varName, startParts, startText, lineNumber, requirePreexisting: false));
+        double? literalStep = null;
+        if (InstructionHelper.TryParseLiteralNumber(stepText, out double constStep))
+        {
+            if (constStep == 0.0)
+            {
+                return (InterpreterResult.InvalidValue, stepText.Trim());
+            }
+            literalStep = constStep;
+        }
+
+        string endText = string.Join(" ", endParts);
+        double? literalEnd = null;
+        if (InstructionHelper.TryParseLiteralNumber(endText, out double constEnd))
+        {
+            literalEnd = constEnd;
+        }
+
+        currentInstructions.Add(new SetInstruction(
+            varName,
+            startParts,
+            startText,
+            lineNumber,
+            requirePreexisting: false,
+            TryCompileSetValue(startParts, startText)));
 
         int loopStartIndex = currentInstructions.Count;
-        bool isNegativeStep = stepText.Trim().StartsWith('-');
-        string comparisonOp = isNegativeStep ? ">=" : "<=";
-
-        List<string> conditionParts = new() { varName, comparisonOp };
-        conditionParts.AddRange(endParts);
-
-        var jif = new JumpIfFalseInstruction(conditionParts, targetIndex: -1, lineNumber);
-        currentInstructions.Add(jif);
+        var forCond = new ForConditionInstruction(
+            varName,
+            endParts,
+            endText,
+            stepParts,
+            stepText,
+            targetIndex: -1,
+            lineNumber,
+            literalStep,
+            literalEnd,
+            TryCompileExpression(stepParts),
+            TryCompileExpression(endParts));
+        currentInstructions.Add(forCond);
 
         blocks.Push(new ForBlockInfo
         {
             VariableName = varName,
+            StepParts = stepParts,
             StepText = stepText,
+            LiteralStep = literalStep,
             LoopStartIndex = loopStartIndex,
-            JumpIfFalse = jif,
+            ForCondition = forCond,
             LineNumber = lineNumber
         });
         return (InterpreterResult.Success, null);
@@ -249,7 +315,8 @@ public static class Compiler
         Stack<CompileBlock> blocks,
         List<Instruction> currentInstructions)
     {
-        if (blocks.Count == 0 || !(blocks.Peek() is IfBlockInfo currentBlock) || parts.Count < 2)
+        if (blocks.Count == 0 || !(blocks.Peek() is IfBlockInfo currentBlock) ||
+            currentBlock.ElseSeen || parts.Count < 2)
             return (InterpreterResult.InvalidSyntax, LanguageNames.Elif);
 
         var jumpToEnd = new JumpInstruction(targetIndex: -1, lineNumber);
@@ -262,7 +329,11 @@ public static class Compiler
         }
 
         List<string> conditionParts = parts.GetRange(1, parts.Count - 1);
-        var jif = new JumpIfFalseInstruction(conditionParts, targetIndex: -1, lineNumber);
+        var jif = new JumpIfFalseInstruction(
+            conditionParts,
+            targetIndex: -1,
+            lineNumber,
+            TryCompileExpression(conditionParts));
         currentInstructions.Add(jif);
         currentBlock.CurrentBranchJumpIfFalse = jif;
         return (InterpreterResult.Success, null);
@@ -274,8 +345,11 @@ public static class Compiler
         Stack<CompileBlock> blocks,
         List<Instruction> currentInstructions)
     {
-        if (blocks.Count == 0 || !(blocks.Peek() is IfBlockInfo currentBlock) || parts.Count != 1)
+        if (blocks.Count == 0 || !(blocks.Peek() is IfBlockInfo currentBlock) ||
+            currentBlock.ElseSeen || parts.Count != 1)
             return (InterpreterResult.InvalidSyntax, LanguageNames.Else);
+
+        currentBlock.ElseSeen = true;
 
         var jumpToEnd = new JumpInstruction(targetIndex: -1, lineNumber);
         currentInstructions.Add(jumpToEnd);
@@ -336,13 +410,36 @@ public static class Compiler
                 cj.TargetIndex = stepIndex;
             }
 
-            List<string> incParts = new() { forBlock.VariableName, "+", forBlock.StepText };
-            string incText = $"{forBlock.VariableName} + {forBlock.StepText}";
-            currentInstructions.Add(new SetInstruction(forBlock.VariableName, incParts, incText, lineNumber, requirePreexisting: false));
+            if (forBlock.LiteralStep.HasValue)
+            {
+                currentInstructions.Add(new ForStepInstruction(forBlock.VariableName, forBlock.LiteralStep.Value, lineNumber));
+            }
+            else
+            {
+                List<string> incParts = new() { forBlock.VariableName, "+" };
+                if (forBlock.StepParts.Count > 1)
+                {
+                    incParts.Add("(");
+                    incParts.AddRange(forBlock.StepParts);
+                    incParts.Add(")");
+                }
+                else
+                {
+                    incParts.AddRange(forBlock.StepParts);
+                }
+                string incText = $"{forBlock.VariableName} + {forBlock.StepText}";
+                currentInstructions.Add(new SetInstruction(
+                    forBlock.VariableName,
+                    incParts,
+                    incText,
+                    lineNumber,
+                    requirePreexisting: false,
+                    TryCompileSetValue(incParts, incText)));
+            }
 
             currentInstructions.Add(new JumpInstruction(forBlock.LoopStartIndex, lineNumber));
             int exitIndex = currentInstructions.Count;
-            forBlock.JumpIfFalse.TargetIndex = exitIndex;
+            forBlock.ForCondition.TargetIndex = exitIndex;
 
             foreach (var bj in forBlock.BreakJumps)
             {
@@ -369,32 +466,49 @@ public static class Compiler
         int lineNumber,
         List<Instruction> currentInstructions)
     {
-        if (parts.Count < 4 || parts[2] != "=")
-            return (InterpreterResult.InvalidSyntax, string.Join(" ", parts));
+        if (parts.Count >= 2 && parts[1] == "=")
+            return (InterpreterResult.MissingVariableName, null);
 
-        string name = parts[1];
-        List<string> valueParts = parts.GetRange(3, parts.Count - 3);
-        string valueText = string.Join(" ", valueParts);
+        string name;
+        List<string> valueParts;
+        string valueText;
 
-        currentInstructions.Add(new SetInstruction(name, valueParts, valueText, lineNumber, requirePreexisting: false));
-        return (InterpreterResult.Success, null);
-    }
-
-    private static (InterpreterResult result, string? subject) CompileCout(
-        List<string> parts,
-        int lineNumber,
-        List<Instruction> currentInstructions)
-    {
-        if (parts.Count < 2)
+        if (parts.Count >= 2 && parts[1].Contains('='))
         {
-            currentInstructions.Add(new CoutInstruction(new List<string>(), string.Empty, lineNumber));
-            return (InterpreterResult.Success, null);
+            int eqPos = parts[1].IndexOf('=');
+            name = parts[1][..eqPos].Trim();
+            string afterEq = parts[1][(eqPos + 1)..].Trim();
+            valueParts = new List<string>();
+            if (!string.IsNullOrEmpty(afterEq))
+                valueParts.Add(afterEq);
+            if (parts.Count > 2)
+                valueParts.AddRange(parts.GetRange(2, parts.Count - 2));
+            valueText = string.Join(" ", valueParts);
+        }
+        else if (parts.Count >= 4 && parts[2] == "=")
+        {
+            name = parts[1];
+            valueParts = parts.GetRange(3, parts.Count - 3);
+            valueText = string.Join(" ", valueParts);
+        }
+        else
+        {
+            return (InterpreterResult.InvalidSyntax, string.Join(" ", parts));
         }
 
-        List<string> argParts = parts.GetRange(1, parts.Count - 1);
-        string argText = string.Join(" ", argParts);
+        if (string.IsNullOrEmpty(name))
+            return (InterpreterResult.MissingVariableName, null);
 
-        currentInstructions.Add(new CoutInstruction(argParts, argText, lineNumber));
+        if (!SyntaxValidator.IsValidIdentifier(name) || LanguageNames.Contains(name))
+            return (InterpreterResult.InvalidSyntax, name);
+
+        currentInstructions.Add(new SetInstruction(
+            name,
+            valueParts,
+            valueText,
+            lineNumber,
+            requirePreexisting: false,
+            TryCompileSetValue(valueParts, valueText)));
         return (InterpreterResult.Success, null);
     }
 
@@ -418,7 +532,13 @@ public static class Compiler
                 if (valParts.Count == 0)
                     return (InterpreterResult.InvalidSyntax, string.Join(" ", parts));
 
-                currentInstructions.Add(new SetIndexInstruction(arrName, indexExpr, valParts, lineNumber));
+                currentInstructions.Add(new SetIndexInstruction(
+                    arrName,
+                    indexExpr,
+                    valParts,
+                    lineNumber,
+                    TryCompileExpression(new List<string>(1) { indexExpr }),
+                    TryCompileExpression(valParts)));
                 return (InterpreterResult.Success, null);
             }
         }
@@ -430,11 +550,75 @@ public static class Compiler
                 return (InterpreterResult.InvalidSyntax, string.Join(" ", parts));
 
             string name = parts[0];
+            if (!SyntaxValidator.IsValidIdentifier(name) || LanguageNames.Contains(name))
+                return (InterpreterResult.InvalidSyntax, name);
+
             List<string> valueParts = parts.GetRange(2, parts.Count - 2);
             string valueText = string.Join(" ", valueParts);
 
-            currentInstructions.Add(new SetInstruction(name, valueParts, valueText, lineNumber, requirePreexisting: true));
+            currentInstructions.Add(new SetInstruction(
+                name,
+                valueParts,
+                valueText,
+                lineNumber,
+                requirePreexisting: true,
+                TryCompileSetValue(valueParts, valueText)));
             return (InterpreterResult.Success, null);
+        }
+
+        // Direct variable or index assignment without space around =: x=5 or arr[0]=9
+        if (parts.Count >= 1 && parts[0].Contains('=') && !parts[0].Contains("==") && !parts[0].Contains("!=") && !parts[0].Contains("<=") && !parts[0].Contains(">="))
+        {
+            int eqPos = parts[0].IndexOf('=');
+            string leftExpr = parts[0][..eqPos].Trim();
+            if (ExpressionParser.IsSingleIndexAccess(leftExpr))
+            {
+                int bracketOpen = leftExpr.IndexOf('[');
+                string arrName = leftExpr[..bracketOpen].Trim();
+                string indexExpr = leftExpr.Substring(bracketOpen + 1, leftExpr.Length - bracketOpen - 2).Trim();
+
+                string afterEq = parts[0][(eqPos + 1)..].Trim();
+                List<string> valParts = new();
+                if (!string.IsNullOrEmpty(afterEq))
+                    valParts.Add(afterEq);
+                if (parts.Count > 1)
+                    valParts.AddRange(parts.GetRange(1, parts.Count - 1));
+
+                if (valParts.Count == 0)
+                    return (InterpreterResult.InvalidSyntax, string.Join(" ", parts));
+
+                currentInstructions.Add(new SetIndexInstruction(
+                    arrName,
+                    indexExpr,
+                    valParts,
+                    lineNumber,
+                    TryCompileExpression(new List<string>(1) { indexExpr }),
+                    TryCompileExpression(valParts)));
+                return (InterpreterResult.Success, null);
+            }
+            else if (SyntaxValidator.IsValidIdentifier(leftExpr) && !LanguageNames.Contains(leftExpr))
+            {
+                string name = leftExpr;
+                string afterEq = parts[0][(eqPos + 1)..].Trim();
+                List<string> valParts = new();
+                if (!string.IsNullOrEmpty(afterEq))
+                    valParts.Add(afterEq);
+                if (parts.Count > 1)
+                    valParts.AddRange(parts.GetRange(1, parts.Count - 1));
+
+                if (valParts.Count == 0)
+                    return (InterpreterResult.InvalidSyntax, string.Join(" ", parts));
+
+                string valueText = string.Join(" ", valParts);
+                currentInstructions.Add(new SetInstruction(
+                    name,
+                    valParts,
+                    valueText,
+                    lineNumber,
+                    requirePreexisting: true,
+                    TryCompileSetValue(valParts, valueText)));
+                return (InterpreterResult.Success, null);
+            }
         }
 
         // Direct function call: <function>(...)
@@ -442,10 +626,31 @@ public static class Compiler
         int openParen = fullLine.IndexOf('(');
         if (openParen > 0 && fullLine.EndsWith(')'))
         {
-            currentInstructions.Add(new CallInstruction(parts, lineNumber));
+            currentInstructions.Add(new CallInstruction(parts, lineNumber, TryCompileExpression(parts)));
             return (InterpreterResult.Success, null);
         }
 
         return (InterpreterResult.UnknownCommand, parts[0]);
+    }
+
+    private static CompiledExpression? TryCompileExpression(List<string>? parts)
+    {
+        if (parts == null || parts.Count == 0)
+            return null;
+
+        return ExpressionCompiler.TryCompile(parts, out CompiledExpression compiled)
+            ? compiled
+            : null;
+    }
+
+    private static CompiledExpression? TryCompileSetValue(List<string> parts, string valueText)
+    {
+        if (parts.Count == 0)
+            return null;
+
+        if (parts.Count == 1 && !InstructionHelper.HasExpressionSymbols(valueText, parts))
+            return null;
+
+        return TryCompileExpression(parts);
     }
 }

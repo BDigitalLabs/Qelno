@@ -4,12 +4,12 @@ set score = 90
 if age >= 18
     if score >= 85
         set result = "Accepted"
-        cout result
+        Cout(result)
     else
         set result = "Rejected"
-        cout result
+        Cout(result)
     end
 else
     set result = "Underage"
-    cout result
+    Cout(result)
 end

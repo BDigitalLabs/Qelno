@@ -1,15 +1,10 @@
-using System;
-using System.Collections.Generic;
+namespace Qelno.Compilation;
 
+using Qelno.Core;
+using Qelno.Instructions;
+using Qelno.Runtime;
 public static class SyntaxValidator
 {
-    private class ValidationBlock
-    {
-        public string BlockType { get; set; } = "";
-        public bool ElseSeen { get; set; }
-        public int LineNumber { get; set; }
-    }
-
     public static bool IsValidIdentifier(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -42,7 +37,7 @@ public static class SyntaxValidator
             return false;
 
         funcName = rest[..openParen].Trim();
-        if (!IsValidIdentifier(funcName) || LanguageNames.Contains(funcName))
+        if (!IsValidIdentifier(funcName) || LanguageNames.Contains(funcName) || FunctionRegistry.IsBuiltinFunction(funcName))
             return false;
 
         string paramStr = rest.Substring(openParen + 1, rest.Length - openParen - 2).Trim();
@@ -55,7 +50,7 @@ public static class SyntaxValidator
         foreach (string rawParam in paramParts)
         {
             string p = rawParam.Trim();
-            if (string.IsNullOrEmpty(p) || !IsValidIdentifier(p) || LanguageNames.Contains(p) || !seen.Add(p))
+            if (string.IsNullOrEmpty(p) || !IsValidIdentifier(p) || LanguageNames.Contains(p) || FunctionRegistry.IsBuiltinFunction(p) || !seen.Add(p))
                 return false;
 
             parameters.Add(p);
@@ -64,179 +59,21 @@ public static class SyntaxValidator
         return true;
     }
 
-    public static (InterpreterResult interpreterResult, string? subject,
-    int? lineNumber) Validate(IEnumerable<string> lines)
+    public static int GetLineBlockDelta(string rawLine)
     {
-        Stack<ValidationBlock> blockStack = new();
-        int lineNumber = 0;
+        string line = InstructionHelper.StripComment(rawLine);
+        List<string> parts = InstructionHelper.SplitLinePreservingQuotes(line);
 
-        foreach (string rawLine in lines)
-        {
-            lineNumber++;
+        if (parts.Count == 0 || parts[0].StartsWith(LanguageNames.OneLineComment))
+            return 0;
 
-            List<string> parts = new List<string>(
-                rawLine.Split(
-                    (char[]?)null,
-                    StringSplitOptions.RemoveEmptyEntries
-                )
-            );
+        if (parts[0] == LanguageNames.If || parts[0] == LanguageNames.While || parts[0] == LanguageNames.For || parts[0] == LanguageNames.Def)
+            return 1;
 
-            if (parts.Count == 0 ||
-            parts[0].StartsWith(LanguageNames.OneLineComment))
-                continue;
+        if (parts[0] == LanguageNames.End)
+            return -1;
 
-            switch (parts[0])
-            {
-                case LanguageNames.Def:
-                    if (!TryParseDefHeader(rawLine, out _, out _))
-                        return (InterpreterResult.InvalidSyntax,
-                        LanguageNames.Def, lineNumber);
-
-                    blockStack.Push(new ValidationBlock
-                    {
-                        BlockType = LanguageNames.Def,
-                        LineNumber = lineNumber
-                    });
-                    break;
-
-                case LanguageNames.Return:
-                    bool inDef = false;
-                    foreach (var b in blockStack)
-                    {
-                        if (b.BlockType == LanguageNames.Def)
-                        {
-                            inDef = true;
-                            break;
-                        }
-                    }
-                    if (!inDef)
-                        return (InterpreterResult.InvalidSyntax,
-                        LanguageNames.Return, lineNumber);
-                    break;
-
-                case LanguageNames.Break:
-                case LanguageNames.Continue:
-                    if (parts.Count != 1)
-                        return (InterpreterResult.InvalidSyntax, parts[0], lineNumber);
-
-                    bool inLoop = false;
-                    foreach (var b in blockStack)
-                    {
-                        if (b.BlockType == LanguageNames.While || b.BlockType == LanguageNames.For)
-                        {
-                            inLoop = true;
-                            break;
-                        }
-                        if (b.BlockType == LanguageNames.Def)
-                        {
-                            break;
-                        }
-                    }
-                    if (!inLoop)
-                        return (InterpreterResult.InvalidSyntax, parts[0], lineNumber);
-                    break;
-
-                case LanguageNames.If:
-                    if (parts.Count < 2)
-                        return (InterpreterResult.InvalidSyntax,
-                        LanguageNames.If, lineNumber);
-
-                    blockStack.Push(new ValidationBlock
-                    {
-                        BlockType = LanguageNames.If,
-                        LineNumber = lineNumber
-                    });
-                    break;
-
-                case LanguageNames.While:
-                    if (parts.Count < 2)
-                        return (InterpreterResult.InvalidSyntax,
-                        LanguageNames.While, lineNumber);
-
-                    blockStack.Push(new ValidationBlock
-                    {
-                        BlockType = LanguageNames.While,
-                        LineNumber = lineNumber
-                    });
-                    break;
-
-                case LanguageNames.For:
-                    int toIndex = parts.IndexOf(LanguageNames.To);
-                    if (parts.Count < 6 || parts[2] != "=" || toIndex <= 3 || toIndex >= parts.Count - 1)
-                        return (InterpreterResult.InvalidSyntax,
-                        LanguageNames.For, lineNumber);
-
-                    blockStack.Push(new ValidationBlock
-                    {
-                        BlockType = LanguageNames.For,
-                        LineNumber = lineNumber
-                    });
-                    break;
-
-                case LanguageNames.Elif:
-                    if (blockStack.Count == 0 ||
-                        blockStack.Peek().BlockType != LanguageNames.If ||
-                        blockStack.Peek().ElseSeen ||
-                        parts.Count < 2)
-                        return (InterpreterResult.InvalidSyntax,
-                        LanguageNames.Elif, lineNumber);
-                    break;
-
-                case LanguageNames.Else:
-                    if (blockStack.Count == 0 ||
-                        blockStack.Peek().BlockType != LanguageNames.If ||
-                        blockStack.Peek().ElseSeen ||
-                        parts.Count != 1)
-                        return (InterpreterResult.InvalidSyntax,
-                        LanguageNames.Else, lineNumber);
-
-                    blockStack.Peek().ElseSeen = true;
-                    break;
-
-                case LanguageNames.End:
-                    if (blockStack.Count == 0 || parts.Count != 1)
-                        return (InterpreterResult.InvalidSyntax,
-                        LanguageNames.End, lineNumber);
-
-                    blockStack.Pop();
-                    break;
-            }
-        }
-
-        if (blockStack.Count > 0)
-        {
-            return (InterpreterResult.InvalidSyntax, LanguageNames.End,
-            blockStack.Peek().LineNumber);
-        }
-
-        return (InterpreterResult.Success, null, null);
+        return 0;
     }
 
-    public static int GetOpenBlockCount(IEnumerable<string> lines)
-    {
-        int count = 0;
-        foreach (string rawLine in lines)
-        {
-            List<string> parts = new List<string>(
-                rawLine.Split(
-                    (char[]?)null,
-                    StringSplitOptions.RemoveEmptyEntries
-                )
-            );
-
-            if (parts.Count == 0 || parts[0].StartsWith(LanguageNames.OneLineComment))
-                continue;
-
-            if (parts[0] == LanguageNames.If || parts[0] == LanguageNames.While || parts[0] == LanguageNames.For || parts[0] == LanguageNames.Def)
-            {
-                count++;
-            }
-            else if (parts[0] == LanguageNames.End && count > 0)
-            {
-                count--;
-            }
-        }
-
-        return count;
-    }
 }

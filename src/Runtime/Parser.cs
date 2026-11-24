@@ -1,11 +1,13 @@
+namespace Qelno.Runtime;
 
-using System.Collections.Generic;
-
+using Qelno.Core;
+using Qelno.Instructions;
+using Qelno.Parsing;
+using Qelno.Compilation;
 public class Parser
 {
     private readonly Variables variables;
     private readonly ExpressionParser expressionParser;
-    private readonly Builtins builtins;
     private readonly ExecutionContext context;
 
     public Variables Variables => variables;
@@ -14,9 +16,8 @@ public class Parser
     public Parser()
     {
         variables = new Variables();
-        builtins = new Builtins(variables);
-        expressionParser = new ExpressionParser(variables, builtins);
-        context = new ExecutionContext(variables, builtins, expressionParser);
+        expressionParser = new ExpressionParser(variables);
+        context = new ExecutionContext(variables, expressionParser);
         expressionParser.SetContext(context);
     }
 
@@ -31,6 +32,7 @@ public class Parser
     {
         context.Ip = 0;
         context.Terminated = false;
+        context.CurrentErrorLine = null;
 
         while (context.Ip >= 0 && context.Ip < instructions.Count && !context.Terminated)
         {
@@ -38,8 +40,14 @@ public class Parser
             var result = instruction.Execute(context);
             if (result.interpreterResult != InterpreterResult.Success)
             {
-                return (result.interpreterResult, result.subject, instruction.LineNumber);
+                int errorLine = context.CurrentErrorLine ?? instruction.LineNumber;
+                return (result.interpreterResult, result.subject, errorLine);
             }
+        }
+
+        if (context.Ip < 0 && !context.Terminated)
+        {
+            return (InterpreterResult.InvalidSyntax, "Invalid instruction pointer", null);
         }
 
         return (InterpreterResult.Success, null, null);

@@ -1,0 +1,5 @@
+def compute()
+    set x = 10 / 0
+end
+
+compute()

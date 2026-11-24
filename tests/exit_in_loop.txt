@@ -1,6 +1,6 @@
 set i = 0
 while true
-    cout i
+    Cout(i)
     Exit()
 end
-cout "after"
+Cout("after")

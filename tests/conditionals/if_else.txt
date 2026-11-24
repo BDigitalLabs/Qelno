@@ -2,8 +2,8 @@ set age = 16
 
 if age >= 18
     set a = "Adult"
-    cout a
+    Cout(a)
 else
     set b = "Underage"
-    cout b
+    Cout(b)
 end

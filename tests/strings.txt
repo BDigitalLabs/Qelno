@@ -3,40 +3,40 @@ set s1 = "Hello"
 set s2 = "World"
 set space = " "
 set combined = s1 + space + s2
-cout combined
+Cout(combined)
 
 set msg = "Number: " + 42
-cout msg
+Cout(msg)
 
 set bool_msg = "Status: " + true
-cout bool_msg
+Cout(bool_msg)
 
-cout "Direct: " + (10 + 20)
+Cout("Direct: " + (10 + 20))
 
 # Equality and inequality tests
-cout "apple" == "apple"
-cout "apple" == "orange"
-cout "apple" != "orange"
-cout "42" == 42
-cout "42" != 42
+Cout("apple" == "apple")
+Cout("apple" == "orange")
+Cout("apple" != "orange")
+Cout("42" == 42)
+Cout("42" != 42)
 
 # Len function tests
-cout Len("Antigravity")
-cout Len("")
+Cout(Len("Antigravity"))
+Cout(Len(""))
 set txt = "12345"
-cout Len(txt)
-cout Len(txt) + 5
+Cout(Len(txt))
+Cout(Len(txt) + 5)
 
 # ToUpper and ToLower tests
-cout ToUpper("lowercase text")
-cout ToLower("UPPERCASE TEXT")
+Cout(ToUpper("lowercase text"))
+Cout(ToLower("UPPERCASE TEXT"))
 set mixed = "HeLLo WoRLd"
-cout ToUpper(mixed)
-cout ToLower(mixed)
+Cout(ToUpper(mixed))
+Cout(ToLower(mixed))
 
 # Substr function tests
 set source = "Antigravity"
-cout Substr(source, 0, 4)
-cout Substr(source, 4, 7)
-cout Substr(source, 4, 50)
-cout Substr("Test", 0, 0)
+Cout(Substr(source, 0, 4))
+Cout(Substr(source, 4, 7))
+Cout(Substr(source, 4, 50))
+Cout(Substr("Test", 0, 0))

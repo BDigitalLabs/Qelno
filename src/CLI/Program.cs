@@ -1,5 +1,9 @@
+namespace Qelno.CLI;
+
+using Qelno.Core;
+using Qelno.Compilation;
+using Qelno.Runtime;
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 
 class Program
@@ -8,12 +12,6 @@ class Program
 
     public Parser Parser => parser;
 
-    private (InterpreterResult interpreterResult, string? subject, int? lineNumber)
-    Validate(IEnumerable<string> lines)
-    {
-        return SyntaxValidator.Validate(lines);
-    }
-
     static void Main(string[] args)
     {
         Program interpreter = new Program();
@@ -21,7 +19,7 @@ class Program
         // Version info
         if (args.Length > 0 && args[0] == "--version")
         {
-            Console.WriteLine("Qelno v0.5");
+            Console.WriteLine("Qelno v0.6");
             return;
         }
 
@@ -32,17 +30,11 @@ class Program
             {
                 string[] lines = File.ReadAllLines(args[0]);
 
-                var validationResult = interpreter.Validate(lines);
-                if (validationResult.interpreterResult != InterpreterResult.Success)
-                {
-                    ErrorPrinter.Print(validationResult.interpreterResult, validationResult.subject, validationResult.lineNumber);
-                    return;
-                }
-
                 var compileResult = interpreter.parser.Compile(lines);
                 if (compileResult.interpreterResult != InterpreterResult.Success)
                 {
                     ErrorPrinter.Print(compileResult.interpreterResult, compileResult.subject, compileResult.lineNumber);
+                    Environment.ExitCode = 1;
                     return;
                 }
 
@@ -50,15 +42,26 @@ class Program
                 if (runResult.interpreterResult != InterpreterResult.Success)
                 {
                     ErrorPrinter.Print(runResult.interpreterResult, runResult.subject, runResult.lineNumber);
+                    Environment.ExitCode = 1;
+                    return;
                 }
             }
             catch (IOException ex)
             {
                 ErrorPrinter.Print(InterpreterResult.FileError, subject: ex.Message);
+                Environment.ExitCode = 1;
             }
             catch (UnauthorizedAccessException)
             {
                 ErrorPrinter.Print(InterpreterResult.FileAccessDenied);
+                Environment.ExitCode = 1;
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.Error.WriteLine($"Fatal Error | Unexpected runtime exception: {ex.Message}");
+                Console.ResetColor();
+                Environment.ExitCode = 1;
             }
 
             return;
@@ -67,6 +70,7 @@ class Program
         // REPL mode
         Console.WriteLine("Hello, write some code!");
         List<string> replBuffer = new List<string>();
+        int openBlocks = 0;
 
         while (true)
         {
@@ -83,37 +87,42 @@ class Program
                 continue;
 
             replBuffer.Add(line);
+            openBlocks += SyntaxValidator.GetLineBlockDelta(line);
+            if (openBlocks < 0)
+                openBlocks = 0;
 
-            int openBlocks = SyntaxValidator.GetOpenBlockCount(replBuffer);
             if (openBlocks > 0)
                 continue;
 
-            var validationResult = interpreter.Validate(replBuffer);
-            if (validationResult.interpreterResult != InterpreterResult.Success)
+            try
             {
-                ErrorPrinter.Print(validationResult.interpreterResult, validationResult.subject);
-                replBuffer.Clear();
-                continue;
-            }
+                var compileResult = interpreter.parser.Compile(replBuffer);
+                if (compileResult.interpreterResult != InterpreterResult.Success)
+                {
+                    ErrorPrinter.Print(compileResult.interpreterResult, compileResult.subject);
+                    replBuffer.Clear();
+                    openBlocks = 0;
+                    continue;
+                }
 
-            var compileResult = interpreter.parser.Compile(replBuffer);
-            if (compileResult.interpreterResult != InterpreterResult.Success)
+                var runResult = interpreter.parser.Execute(compileResult.instructions!);
+                if (runResult.interpreterResult != InterpreterResult.Success)
+                {
+                    ErrorPrinter.Print(runResult.interpreterResult, runResult.subject);
+                }
+
+                if (interpreter.parser.Context.Terminated)
+                    break;
+            }
+            catch (Exception ex)
             {
-                ErrorPrinter.Print(compileResult.interpreterResult, compileResult.subject);
-                replBuffer.Clear();
-                continue;
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.Error.WriteLine($"Error | Unexpected exception: {ex.Message}");
+                Console.ResetColor();
             }
-
-            var runResult = interpreter.parser.Execute(compileResult.instructions!);
-            if (runResult.interpreterResult != InterpreterResult.Success)
-            {
-                ErrorPrinter.Print(runResult.interpreterResult, runResult.subject);
-            }
-
-            if (interpreter.parser.Context.Terminated)
-                break;
 
             replBuffer.Clear();
+            openBlocks = 0;
         }
     }
 }

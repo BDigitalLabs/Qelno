@@ -1,0 +1,24 @@
+set a = [10, 20, 30]
+set b = Clone(a)
+
+# Modify original, clone should not change
+a[0] = 99
+Cout(a[0])
+Cout(b[0])
+
+# Modify clone, original should not change
+b[1] = 88
+Cout(a[1])
+Cout(b[1])
+
+# Push to original, clone length should not change
+Push(a, 40)
+Cout(Len(a))
+Cout(Len(b))
+
+# Empty array clone
+set empty = []
+set empty_copy = Clone(empty)
+Push(empty_copy, 1)
+Cout(Len(empty))
+Cout(Len(empty_copy))

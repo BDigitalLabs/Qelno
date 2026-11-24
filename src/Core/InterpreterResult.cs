@@ -1,3 +1,4 @@
+namespace Qelno.Core;
 public enum InterpreterResult
 {
     Success,
@@ -13,5 +14,6 @@ public enum InterpreterResult
     FileError,
     FileAccessDenied,
     FunctionNotFound,
-    InvalidParameterCount
+    InvalidParameterCount,
+    CallDepthExceeded
 }

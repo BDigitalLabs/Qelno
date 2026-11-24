@@ -1,0 +1,29 @@
+# Short circuit test with and
+set a = false and 1 / 0 == 0
+Cout(a)
+
+# Short circuit test with or
+set b = true or 1 / 0 == 0
+Cout(b)
+
+# Side effect prevention
+set counter = 0
+def trigger()
+    counter = counter + 1
+    return true
+end
+
+if true or trigger()
+    Cout("or short circuited")
+end
+Cout(counter)
+
+if false and trigger()
+    Cout("should not reach")
+end
+Cout(counter)
+
+# Complex condition
+set c = (false and trigger()) or (true or trigger())
+Cout(c)
+Cout(counter)

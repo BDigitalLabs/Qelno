@@ -1,17 +1,19 @@
-using System;
-using System.Collections.Generic;
+namespace Qelno.Core;
+
 using System.Globalization;
+using Qelno.Compilation;
+using Qelno.Instructions;
 
 public class Variables
 {
-    private readonly Dictionary<string, object> variables =
-        new Dictionary<string, object>(StringComparer.Ordinal);
+    private readonly Dictionary<string, Value> variables =
+        new Dictionary<string, Value>(StringComparer.Ordinal);
 
-    private readonly Stack<Dictionary<string, object>> scopes = new();
+    private readonly Stack<Dictionary<string, Value>> scopes = new();
 
-    public void PushScope(Dictionary<string, object>? initialScope = null)
+    public void PushScope(Dictionary<string, Value>? initialScope = null)
     {
-        scopes.Push(initialScope ?? new Dictionary<string, object>(StringComparer.Ordinal));
+        scopes.Push(initialScope ?? new Dictionary<string, Value>(StringComparer.Ordinal));
     }
 
     public void PopScope()
@@ -23,6 +25,7 @@ public class Variables
     public bool IsNameAvailable(string name)
     {
         if (string.IsNullOrWhiteSpace(name) || LanguageNames.Contains(name)) return false;
+        if (!SyntaxValidator.IsValidIdentifier(name)) return false;
         return true;
     }
 
@@ -46,14 +49,10 @@ public class Variables
             throw new ArgumentException("Variable not found!");
     }
 
-    // Stores the given value without changing its type.
-    public void SetVariable(string name, object value, bool requirePreexisting = false)
+    public void SetVariable(string name, Value value, bool requirePreexisting = false)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Invalid variable name!");
-
-        if (value == null)
-            throw new ArgumentNullException(nameof(value));
 
         if (scopes.Count > 0)
         {
@@ -78,17 +77,15 @@ public class Variables
             throw new ArgumentNullException(nameof(text));
 
         // Quoted string literal.
-        if (text.Length >= 2 &&
-            ((text[0] == '"' && text[^1] == '"') ||
-             (text[0] == '\'' && text[^1] == '\'')))
+        if (InstructionHelper.IsValidStringLiteral(text))
         {
-            SetVariable(name, text[1..^1], requirePreexisting);
+            SetVariable(name, Value.FromString(InstructionHelper.Unescape(text[1..^1])), requirePreexisting);
             return;
         }
 
         if (bool.TryParse(text, out bool boolResult))
         {
-            SetVariable(name, boolResult, requirePreexisting);
+            SetVariable(name, Value.FromBool(boolResult), requirePreexisting);
         }
         else if (long.TryParse(
             text,
@@ -96,7 +93,7 @@ public class Variables
             CultureInfo.InvariantCulture,
             out long longResult))
         {
-            SetVariable(name, longResult, requirePreexisting);
+            SetVariable(name, Value.FromInteger(longResult), requirePreexisting);
         }
         else if (double.TryParse(
             text,
@@ -104,15 +101,15 @@ public class Variables
             CultureInfo.InvariantCulture,
             out double doubleResult))
         {
-            SetVariable(name, doubleResult, requirePreexisting);
+            SetVariable(name, Value.FromFloat(doubleResult), requirePreexisting);
         }
         else
         {
-            SetVariable(name, text, requirePreexisting);
+            SetVariable(name, Value.FromString(text), requirePreexisting);
         }
     }
 
-    public bool TryGetVariable(string name, out object? value)
+    public bool TryGetVariable(string name, out Value value)
     {
         if (scopes.Count > 0 && scopes.Peek().TryGetValue(name, out value))
             return true;

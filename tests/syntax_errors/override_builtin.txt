@@ -1,0 +1,3 @@
+def Abs(x)
+    return 42
+end

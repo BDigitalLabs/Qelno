@@ -1,0 +1,43 @@
+# Trim tests
+Cout(Trim("   hello   "))
+Cout(Trim("world   "))
+Cout(Trim("   qelno"))
+Cout(Trim("no_spaces"))
+Cout(Trim(""))
+
+# Contains tests (string)
+Cout(Contains("apple pie", "pie"))
+Cout(Contains("apple pie", "banana"))
+Cout(Contains("hello", ""))
+Cout(Contains("", ""))
+Cout(Contains("test", "test"))
+
+# Contains tests (array)
+set nums = [1, 2, 3, "four"]
+Cout(Contains(nums, 2))
+Cout(Contains(nums, 5))
+Cout(Contains(nums, "four"))
+Cout(Contains(nums, "five"))
+
+# Replace tests
+Cout(Replace("hello world", "world", "qelno"))
+Cout(Replace("banana", "a", "o"))
+Cout(Replace("hello", "xyz", "abc"))
+Cout(Replace("unchanged", "", "something"))
+
+# Split tests
+set parts = Split("a,b,c", ",")
+Cout(Len(parts))
+Cout(parts[0])
+Cout(parts[1])
+Cout(parts[2])
+
+set single = Split("hello", ":")
+Cout(Len(single))
+Cout(single[0])
+
+set chars = Split("cat", "")
+Cout(Len(chars))
+Cout(chars[0])
+Cout(chars[1])
+Cout(chars[2])

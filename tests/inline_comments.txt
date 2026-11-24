@@ -1,0 +1,19 @@
+# Inline comments test
+set x = 10 # assign 10 to x
+set y = 20 # assign 20 to y
+set sum = x + y # calculate sum
+Cout(sum) # print sum
+
+def greet(name) # define function with inline comment
+    set msg = "Hello, " + name # create greeting
+    return msg # return message
+end # end of function
+
+Cout(greet("World")) # call function
+
+set str_with_hash = "This # is not a comment" # but this is
+Cout(str_with_hash)
+
+if x < y # if condition
+    Cout("x is less than y") # inside if
+end # end if

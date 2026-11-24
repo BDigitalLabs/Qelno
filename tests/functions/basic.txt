@@ -1,5 +1,5 @@
 def greet()
-    cout "Hello from function"
+    Cout("Hello from function")
 end
 
 greet()
@@ -9,19 +9,19 @@ def add(a, b)
 end
 
 set s = add(10, 25)
-cout s
+Cout(s)
 
 set comp = add(2, 3) * 4
-cout comp
+Cout(comp)
 
 def get_msg(name)
     return name
 end
 
 set msg = get_msg("Antigravity")
-cout msg
+Cout(msg)
 
-cout add(100, 200)
+Cout(add(100, 200))
 
 def sign(x)
     if x > 0
@@ -33,6 +33,6 @@ def sign(x)
     end
 end
 
-cout sign(5)
-cout sign(-3)
-cout sign(0)
+Cout(sign(5))
+Cout(sign(-3))
+Cout(sign(0))

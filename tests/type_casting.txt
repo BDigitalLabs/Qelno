@@ -1,42 +1,42 @@
 # TypeOf tests
-cout TypeOf(42)
-cout TypeOf(3.14)
-cout TypeOf("merhaba")
-cout TypeOf(true)
-cout TypeOf(false)
+Cout(TypeOf(42))
+Cout(TypeOf(3.14))
+Cout(TypeOf("merhaba"))
+Cout(TypeOf(true))
+Cout(TypeOf(false))
 
 # Int conversion tests
-cout Int(9.99)
-cout Int(-5.8)
-cout Int("123")
-cout Int(true)
-cout Int(false)
+Cout(Int(9.99))
+Cout(Int(-5.8))
+Cout(Int("123"))
+Cout(Int(true))
+Cout(Int(false))
 
 # Float conversion tests
-cout Float(10)
-cout Float("2.718")
-cout Float(true)
-cout Float(false)
+Cout(Float(10))
+Cout(Float("2.718"))
+Cout(Float(true))
+Cout(Float(false))
 
 # Str conversion tests
 set s1 = Str(456)
-cout s1
-cout TypeOf(s1)
+Cout(s1)
+Cout(TypeOf(s1))
 
 set s2 = Str(true)
-cout s2
-cout TypeOf(s2)
+Cout(s2)
+Cout(TypeOf(s2))
 
 # Bool conversion tests
-cout Bool(1)
-cout Bool(0)
-cout Bool(-5)
-cout Bool("true")
-cout Bool("false")
-cout Bool("")
-cout Bool("dolu")
+Cout(Bool(1))
+Cout(Bool(0))
+Cout(Bool(-5))
+Cout(Bool("true"))
+Cout(Bool("false"))
+Cout(Bool(""))
+Cout(Bool("dolu"))
 
 # Round tests
-cout Round(4.2)
-cout Round(4.7)
-cout Round(-2.5)
+Cout(Round(4.2))
+Cout(Round(4.7))
+Cout(Round(-2.5))

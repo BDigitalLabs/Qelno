@@ -1,10 +1,13 @@
-using System;
-using System.Collections.Generic;
+namespace Qelno.Parsing;
+
+using Qelno.Core;
+using Qelno.Instructions;
+using Qelno.Compilation;
 
 public partial class ExpressionParser
 {
     public (InterpreterResult interpreterResult, string? subject)
-        EvaluateFunctionCall(string callString, out object? result)
+        EvaluateFunctionCall(string callString, out Value? result)
     {
         result = null;
         string trimmed = callString.Trim();
@@ -15,7 +18,7 @@ public partial class ExpressionParser
         string funcName = trimmed[..openParen].Trim();
         string argsContent = trimmed.Substring(openParen + 1, trimmed.Length - openParen - 2).Trim();
 
-        List<object> evaluatedArgs = new();
+        List<Value> evaluatedArgs = new();
         if (argsContent.Length > 0)
         {
             List<string> rawArgs = SplitArguments(argsContent);
@@ -26,50 +29,48 @@ public partial class ExpressionParser
                     return (InterpreterResult.InvalidSyntax, callString);
 
                 // String literal?
-                if (arg.Length >= 2 &&
-                    ((arg[0] == '"' && arg[^1] == '"' && !arg[1..^1].Contains('"')) ||
-                     (arg[0] == '\'' && arg[^1] == '\'' && !arg[1..^1].Contains('\''))))
+                if (InstructionHelper.IsValidStringLiteral(arg))
                 {
-                    evaluatedArgs.Add(arg[1..^1]);
+                    evaluatedArgs.Add(Value.FromString(InstructionHelper.Unescape(arg[1..^1])));
                     continue;
                 }
 
                 // Boolean literal?
                 if (arg == LanguageNames.True)
                 {
-                    evaluatedArgs.Add(true);
+                    evaluatedArgs.Add(Value.True);
                     continue;
                 }
                 if (arg == LanguageNames.False)
                 {
-                    evaluatedArgs.Add(false);
+                    evaluatedArgs.Add(Value.False);
                     continue;
                 }
 
                 // Array literal?
-                if (arg.StartsWith('[') && arg.EndsWith(']'))
+                if (IsSingleArrayLiteral(arg))
                 {
-                    var arrayRes = ParseArrayLiteral(arg, out object? arrVal);
+                    var arrayRes = ParseArrayLiteral(arg, out Value arrVal);
                     if (arrayRes.interpreterResult != InterpreterResult.Success)
                         return arrayRes;
 
-                    evaluatedArgs.Add(arrVal!);
+                    evaluatedArgs.Add(arrVal);
                     continue;
                 }
 
                 // Variable?
-                if (variables.TryGetVariable(arg, out object? varVal) && !arg.Contains('(') && !arg.Contains('['))
+                if (variables.TryGetVariable(arg, out Value varVal) && !arg.Contains('(') && !arg.Contains('['))
                 {
-                    evaluatedArgs.Add(varVal!);
+                    evaluatedArgs.Add(varVal);
                     continue;
                 }
 
                 // Evaluate as an expression
-                var evalRes = EvaluateExpression(new List<string> { arg }, out object? argVal);
+                var evalRes = EvaluateExpression(new List<string> { arg }, out Value argVal);
                 if (evalRes.interpreterResult != InterpreterResult.Success)
                     return evalRes;
 
-                evaluatedArgs.Add(argVal!);
+                evaluatedArgs.Add(argVal);
             }
         }
 
@@ -96,7 +97,11 @@ public partial class ExpressionParser
             char c = source[i];
             if (inString != '\0')
             {
-                if (c == inString) inString = '\0';
+                if (c == '\\' && i + 1 < source.Length)
+                {
+                    i++;
+                }
+                else if (c == inString) inString = '\0';
             }
             else if (c == '"' || c == '\'')
             {
@@ -143,7 +148,11 @@ public partial class ExpressionParser
             char c = trimmed[i];
             if (inString != '\0')
             {
-                if (c == inString) inString = '\0';
+                if (c == '\\' && i + 1 < trimmed.Length)
+                {
+                    i++;
+                }
+                else if (c == inString) inString = '\0';
             }
             else if (c == '"' || c == '\'')
             {

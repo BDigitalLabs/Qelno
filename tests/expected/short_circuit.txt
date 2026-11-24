@@ -1,0 +1,7 @@
+false
+true
+or short circuited
+0
+0
+true
+0

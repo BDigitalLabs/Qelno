@@ -1,0 +1,12 @@
+Hello
+World
+Col1	Col2
+He said "hello"
+She said 'hi'
+Backslash: \
+line1
+line2
+tab	bed
+"quoted"
+Direct: "test"
+Next line

@@ -2,7 +2,7 @@
 
 An interpreted programming language written in C# (.NET 10).
 
-> **Status:** v0.5 — early, experimental release. Syntax and behavior may change.
+> **Status:** v0.6 — early, experimental release. Syntax and behavior may change.
 
 ## Features
 
@@ -10,7 +10,7 @@ An interpreted programming language written in C# (.NET 10).
 - `if` / `elif` / `else`, `while`, `for`, `break`, and `continue`
 - Functions with parameters and return values
 - Built-in math, string, type, and array functions
-- Console input/output (`cin`, `cout`) and an `Exit()` function
+- Console input/output (`Cin()`, `Cout()`) and an `Exit()` function
 - Interactive REPL and file execution
 
 ## Requirements
@@ -49,18 +49,18 @@ Any text file can be used as a script. In the REPL, type `exit` on an empty line
 
 ```text
 set name = "World"
-cout "Hello, " + name
+Cout("Hello, " + name)
 
 set total = 0
 for i = 1 to 5
     total = total + i
 end
-cout total
+Cout(total)
 
 def square(x)
     return x * x
 end
-cout square(5)
+Cout(square(5))
 ```
 
 ## Tests

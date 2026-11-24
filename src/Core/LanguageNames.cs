@@ -1,12 +1,11 @@
+namespace Qelno.Core;
 public static class LanguageNames
 {
     public const string Set = "set";
-    public const string Cout = "cout";
     public const string And = "and";
     public const string Or = "or";
 
     public const string Not = "not";
-    public const string Cin = "cin";
 
     public const string False = "false";
     public const string True = "true";
@@ -27,8 +26,6 @@ public static class LanguageNames
     private static readonly HashSet<string> Names = new(StringComparer.Ordinal)
     {
         Set,
-        Cout,
-        Cin,
         Not,
         And,
         Or,

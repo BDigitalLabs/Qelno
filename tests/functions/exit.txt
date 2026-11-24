@@ -1,7 +1,7 @@
 def stop()
-    cout "called"
+    Cout("called")
     Exit()
 end
 
 stop()
-cout "after"
+Cout("after")

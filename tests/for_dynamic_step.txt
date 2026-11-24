@@ -1,0 +1,9 @@
+set s = -1
+for i = 3 to 1 step s
+    Cout(i)
+end
+
+set s = 2
+for j = 1 to 5 step s
+    Cout(j)
+end

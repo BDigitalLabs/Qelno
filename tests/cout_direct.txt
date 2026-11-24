@@ -1,11 +1,11 @@
-cout true
-cout false
-cout 345
-cout -42
-cout 3.14
-cout "Hello, World!"
-cout 'Hello, World!'
-cout "Single quote 'inside'"
-cout 'Double quote "inside"'
+Cout(true)
+Cout(false)
+Cout(345)
+Cout(-42)
+Cout(3.14)
+Cout("Hello, World!")
+Cout('Hello, World!')
+Cout("Single quote 'inside'")
+Cout('Double quote "inside"')
 set my_var = 123
-cout my_var
+Cout(my_var)

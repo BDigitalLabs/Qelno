@@ -1,43 +1,22 @@
-using System;
-using System.Collections.Generic;
+namespace Qelno.Parsing;
+
+using Qelno.Core;
+using Qelno.Instructions;
 using System.Globalization;
 
 public static class ExpressionEvaluator
 {
-    private static (InterpreterResult interpreterResult, string? subject) ConvertToDouble(
-        string value,
-        out double number)
-    {
-        bool status = double.TryParse(
-            value,
-            NumberStyles.Float,
-            CultureInfo.InvariantCulture,
-            out number
-        );
-
-        if (!status)
-            return (InterpreterResult.InvalidValue, value);
-
-        return (InterpreterResult.Success, null);
-    }
-
-    private static string FormatForConcat(object? val)
-    {
-        if (val is List<object> list) return Builtins.FormatValue(list);
-        if (val is bool b) return b ? "true" : "false";
-        if (val is double d) return d.ToString(CultureInfo.InvariantCulture);
-        if (val is IFormattable f) return f.ToString(null, CultureInfo.InvariantCulture);
-        return val?.ToString() ?? string.Empty;
-    }
-
     public static (InterpreterResult interpreterResult, string? subject)
-        EvaluateExpression(List<string>? parts, out object? objectResult)
+        EvaluateExpression(
+            List<string>? parts,
+            out Value valueResult,
+            Func<string, (InterpreterResult, Value)>? arrayEvaluator = null)
     {
-        objectResult = null;
+        valueResult = Value.Null;
         if (parts == null || parts.Count == 0)
             return (InterpreterResult.PartsAreEmptyOrNull, null);
 
-        Stack<object> values = new();
+        Stack<Value> values = new();
 
         foreach (string token in parts)
         {
@@ -46,7 +25,7 @@ public static class ExpressionEvaluator
             {
                 if (values.Count < 1)
                     return (InterpreterResult.InvalidSyntax, token);
-                if (values.Peek() is not double)
+                if (!values.Peek().IsNumber)
                     return (InterpreterResult.InvalidValue, token);
 
                 continue;
@@ -58,12 +37,11 @@ public static class ExpressionEvaluator
                 if (values.Count < 1)
                     return (InterpreterResult.InvalidSyntax, token);
 
-                if (values.Peek() is not double unaryNumber)
+                Value unaryVal = values.Pop();
+                if (!unaryVal.IsNumber)
                     return (InterpreterResult.InvalidValue, token);
 
-                values.Pop();
-
-                values.Push(-unaryNumber);
+                values.Push(Value.Negate(unaryVal));
                 continue;
             }
 
@@ -72,12 +50,11 @@ public static class ExpressionEvaluator
                 if (values.Count < 1)
                     return (InterpreterResult.InvalidSyntax, token);
 
-                if (values.Peek() is not bool boolValue)
+                Value val = values.Pop();
+                if (!val.IsBool)
                     return (InterpreterResult.InvalidValue, token);
 
-                values.Pop();
-
-                values.Push(!boolValue);
+                values.Push(Value.FromBool(!val.AsBool()));
                 continue;
             }
 
@@ -86,62 +63,45 @@ public static class ExpressionEvaluator
                 if (values.Count < 2)
                     return (InterpreterResult.InvalidSyntax, token);
 
-                object rightValue = values.Pop();
-                object leftValue = values.Pop();
+                Value right = values.Pop();
+                Value left = values.Pop();
 
-                if (rightValue is not bool right ||
-                    leftValue is not bool left)
+                if (!left.IsBool || !right.IsBool)
                 {
                     return (InterpreterResult.InvalidValue, token);
                 }
 
-                values.Push(token == "and" ? left && right : left || right);
+                values.Push(Value.FromBool(token == "and" ? left.AsBool() && right.AsBool() : left.AsBool() || right.AsBool()));
                 continue;
             }
 
-            // Binary operators.
+            // Binary arithmetic operators.
             if (token is "+" or "-" or "*" or "/" or "%" or "**")
             {
                 if (values.Count < 2)
                     return (InterpreterResult.InvalidSyntax, token);
 
-                object rightValue = values.Pop();
-                object leftValue = values.Pop();
+                Value right = values.Pop();
+                Value left = values.Pop();
 
-                if (token == "+")
+                (InterpreterResult result, Value value) opRes = token switch
                 {
-                    if (leftValue is string || rightValue is string)
-                    {
-                        string leftStr = FormatForConcat(leftValue);
-                        string rightStr = FormatForConcat(rightValue);
-                        values.Push(leftStr + rightStr);
-                        continue;
-                    }
-                }
-
-                if (rightValue is not double right ||
-                    leftValue is not double left)
-                {
-                    return (InterpreterResult.InvalidValue, token);
-                }
-
-                // Division by zero in double type can produce Infinity or NaN;
-                // this needs to be handled separately.
-                if ((token == "/" || token == "%") && right == 0)
-                    return (InterpreterResult.DivisionByZero, $"{left} {token} {right}");
-
-                double result = token switch
-                {
-                    "+" => left + right,
-                    "-" => left - right,
-                    "*" => left * right,
-                    "/" => left / right,
-                    "%" => left % right,
-                    "**" => Math.Pow(left, right),
+                    "+" => Value.Add(left, right),
+                    "-" => Value.Subtract(left, right),
+                    "*" => Value.Multiply(left, right),
+                    "/" => Value.Divide(left, right),
+                    "%" => Value.Modulo(left, right),
+                    "**" => Value.Power(left, right),
                     _ => throw new InvalidOperationException()
                 };
 
-                values.Push(result);
+                if (opRes.result == InterpreterResult.DivisionByZero)
+                    return (InterpreterResult.DivisionByZero, $"{left} {token} {right}");
+
+                if (opRes.result != InterpreterResult.Success)
+                    return (opRes.result, token);
+
+                values.Push(opRes.value);
                 continue;
             }
 
@@ -151,38 +111,17 @@ public static class ExpressionEvaluator
                 if (values.Count < 2)
                     return (InterpreterResult.InvalidSyntax, token);
 
-                object rightValue = values.Pop();
-                object leftValue = values.Pop();
+                Value right = values.Pop();
+                Value left = values.Pop();
 
                 if (token is "==" or "!=")
                 {
-                    if (leftValue is string leftStr && rightValue is string rightStr)
-                    {
-                        bool eq = string.Equals(leftStr, rightStr, StringComparison.Ordinal);
-                        values.Push(token == "==" ? eq : !eq);
-                        continue;
-                    }
-                    else if (leftValue is string || rightValue is string)
-                    {
-                        values.Push(token == "!=");
-                        continue;
-                    }
-
-                    if (leftValue is bool leftBool && rightValue is bool rightBool)
-                    {
-                        bool eq = leftBool == rightBool;
-                        values.Push(token == "==" ? eq : !eq);
-                        continue;
-                    }
-                    else if (leftValue is bool || rightValue is bool)
-                    {
-                        values.Push(token == "!=");
-                        continue;
-                    }
+                    bool eq = left.Equals(right);
+                    values.Push(Value.FromBool(token == "==" ? eq : !eq));
+                    continue;
                 }
 
-                if (rightValue is not double right ||
-                    leftValue is not double left)
+                if ((!left.IsNumber || !right.IsNumber) && (!left.IsString || !right.IsString))
                 {
                     return (InterpreterResult.InvalidValue, token);
                 }
@@ -193,40 +132,66 @@ public static class ExpressionEvaluator
                     "<" => left < right,
                     ">=" => left >= right,
                     "<=" => left <= right,
-                    "==" => left == right,
-                    "!=" => left != right,
                     _ => throw new InvalidOperationException()
                 };
 
-                values.Push(result);
+                values.Push(Value.FromBool(result));
                 continue;
             }
 
             // String literal.
-            if (token.Length >= 2 &&
-                ((token[0] == '"' && token[^1] == '"') ||
-                 (token[0] == '\'' && token[^1] == '\'')))
+            if (InstructionHelper.IsValidStringLiteral(token))
             {
-                values.Push(token[1..^1]);
+                values.Push(Value.FromString(InstructionHelper.Unescape(token[1..^1])));
                 continue;
             }
 
-            if (token == "true" || token == "false")
+            // Array literal.
+            if (ExpressionParser.IsSingleArrayLiteral(token))
             {
-                values.Push(bool.Parse(token));
+                if (arrayEvaluator != null)
+                {
+                    var (arrRes, arrVal) = arrayEvaluator(token);
+                    if (arrRes != InterpreterResult.Success)
+                        return (arrRes, token);
+                    values.Push(arrVal);
+                    continue;
+                }
+                else
+                {
+                    var (arrRes, arrVal) = ParseSimpleArrayLiteral(token);
+                    if (arrRes != InterpreterResult.Success)
+                        return (arrRes, token);
+                    values.Push(arrVal);
+                    continue;
+                }
+            }
+
+            if (token == "true")
+            {
+                values.Push(Value.True);
                 continue;
             }
 
-            // Remaining tokens must be numeric values.
-            var conversion = ConvertToDouble(
-                token,
-                out double number
-            );
+            if (token == "false")
+            {
+                values.Push(Value.False);
+                continue;
+            }
 
-            if (conversion.interpreterResult != InterpreterResult.Success)
-                return conversion;
+            if (long.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out long intNumber))
+            {
+                values.Push(Value.FromInteger(intNumber));
+                continue;
+            }
 
-            values.Push(number);
+            if (double.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out double floatNumber))
+            {
+                values.Push(Value.FromFloat(floatNumber));
+                continue;
+            }
+
+            return (InterpreterResult.InvalidValue, token);
         }
 
         // A valid postfix expression must leave a single value at the end.
@@ -236,8 +201,35 @@ public static class ExpressionEvaluator
                 string.Join(" ", parts)
             );
 
-        objectResult = values.Pop();
+        valueResult = values.Pop();
 
         return (InterpreterResult.Success, null);
+    }
+
+    private static (InterpreterResult, Value) ParseSimpleArrayLiteral(string source)
+    {
+        string inner = source.Trim()[1..^1].Trim();
+        if (inner.Length == 0)
+            return (InterpreterResult.Success, Value.FromArray(new List<Value>()));
+
+        List<string> rawItems = ExpressionParser.SplitArguments(inner);
+        List<Value> list = new(rawItems.Count);
+        foreach (string rawItem in rawItems)
+        {
+            string item = rawItem.Trim();
+            if (InstructionHelper.IsValidStringLiteral(item))
+                list.Add(Value.FromString(InstructionHelper.Unescape(item[1..^1])));
+            else if (item == "true")
+                list.Add(Value.True);
+            else if (item == "false")
+                list.Add(Value.False);
+            else if (long.TryParse(item, NumberStyles.Integer, CultureInfo.InvariantCulture, out long l))
+                list.Add(Value.FromInteger(l));
+            else if (double.TryParse(item, NumberStyles.Float, CultureInfo.InvariantCulture, out double d))
+                list.Add(Value.FromFloat(d));
+            else
+                return (InterpreterResult.InvalidValue, Value.Null);
+        }
+        return (InterpreterResult.Success, Value.FromArray(list));
     }
 }

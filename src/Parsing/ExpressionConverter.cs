@@ -1,3 +1,4 @@
+namespace Qelno.Parsing;
 
 public static class ExpressionConverter
 {

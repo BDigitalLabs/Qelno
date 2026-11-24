@@ -1,4 +1,6 @@
-using System.Collections.Generic;
+namespace Qelno.Compilation;
+
+using Qelno.Instructions;
 
 internal class DefBlockInfo : CompileBlock
 {

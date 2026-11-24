@@ -1,17 +1,17 @@
 for i = 1 to 4
-    cout i
+    Cout(i)
 end
 
 for j = 0 to 6 step 2
-    cout j
+    Cout(j)
 end
 
 for k = 5 to 1 step -1
-    cout k
+    Cout(k)
 end
 
 set start = 2
 set finish = 4
 for m = start to finish
-    cout m
+    Cout(m)
 end

@@ -1,37 +1,38 @@
-using System;
-using System.Collections.Generic;
+namespace Qelno.Runtime;
+
+using Qelno.Core;
+using Qelno.Instructions;
+using Qelno.Parsing;
 
 public class ExecutionContext
 {
     public int Ip { get; set; }
     public bool Terminated { get; set; }
     public bool IsReturning { get; set; }
-    public object? LastReturnValue { get; set; }
+    public Value? LastReturnValue { get; set; }
     public int CallDepth { get; set; }
     public const int MaxCallDepth = 500;
+    public int? CurrentErrorLine { get; set; }
 
     public Variables Variables { get; }
-    public Builtins Builtins { get; }
     public ExpressionParser ExpressionParser { get; }
     public FunctionRegistry Functions { get; }
 
     public ExecutionContext(
         Variables variables,
-        Builtins builtins,
         ExpressionParser expressionParser,
         FunctionRegistry? functions = null)
     {
         Variables = variables;
-        Builtins = builtins;
         ExpressionParser = expressionParser;
         Functions = functions ?? new FunctionRegistry();
     }
 
-    public (InterpreterResult interpreterResult, string? subject, object? returnValue)
-        InvokeFunction(string functionName, List<object> args)
+    public (InterpreterResult interpreterResult, string? subject, Value? returnValue)
+        InvokeFunction(string functionName, List<Value> args)
     {
         if (CallDepth >= MaxCallDepth)
-            return (InterpreterResult.InvalidValue, "Stack overflow: maximum call depth exceeded.", null);
+            return (InterpreterResult.CallDepthExceeded, functionName, null);
 
         if (!Functions.TryGetFunction(functionName, out var function))
             return (InterpreterResult.FunctionNotFound, functionName, null);
@@ -41,7 +42,8 @@ public class ExecutionContext
             if (nativeFn.ParameterCount >= 0 && args.Count != nativeFn.ParameterCount)
                 return (InterpreterResult.InvalidParameterCount, functionName, null);
 
-            return nativeFn.Invoker(this, args);
+            var (res, subj, val) = nativeFn.Invoker(this, args);
+            return (res, subj, val);
         }
 
         if (function is UserFunction userFn)
@@ -49,7 +51,7 @@ public class ExecutionContext
             if (args.Count != userFn.Parameters.Count)
                 return (InterpreterResult.InvalidParameterCount, functionName, null);
 
-            var localScope = new Dictionary<string, object>(StringComparer.Ordinal);
+            var localScope = new Dictionary<string, Value>(StringComparer.Ordinal);
             for (int i = 0; i < userFn.Parameters.Count; i++)
             {
                 localScope[userFn.Parameters[i]] = args[i];
@@ -58,7 +60,7 @@ public class ExecutionContext
             Variables.PushScope(localScope);
             int prevIp = Ip;
             bool prevReturning = IsReturning;
-            object? prevReturnValue = LastReturnValue;
+            Value? prevReturnValue = LastReturnValue;
             IsReturning = false;
             LastReturnValue = null;
             CallDepth++;
@@ -72,12 +74,15 @@ public class ExecutionContext
                     Ip = localIp;
                     var result = instruction.Execute(this);
                     if (result.interpreterResult != InterpreterResult.Success)
+                    {
+                        CurrentErrorLine ??= instruction.LineNumber;
                         return (result.interpreterResult, result.subject, null);
+                    }
 
                     localIp = Ip;
                 }
 
-                object? userResult = LastReturnValue;
+                Value? userResult = LastReturnValue;
                 return (InterpreterResult.Success, null, userResult);
             }
             finally

@@ -5,7 +5,7 @@ while i < 10
     if i == 5
         break
     end
-    cout i
+    Cout(i)
 end
 
 # While loop with continue
@@ -15,7 +15,7 @@ while j < 5
     if j == 3
         continue
     end
-    cout j
+    Cout(j)
 end
 
 # For loop with break
@@ -23,7 +23,7 @@ for k = 1 to 10
     if k == 4
         break
     end
-    cout k
+    Cout(k)
 end
 
 # For loop with continue
@@ -31,5 +31,5 @@ for m = 1 to 5
     if m == 3
         continue
     end
-    cout m
+    Cout(m)
 end

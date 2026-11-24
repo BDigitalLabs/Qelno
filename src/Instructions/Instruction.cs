@@ -1,3 +1,8 @@
+namespace Qelno.Instructions;
+
+using Qelno.Core;
+using Qelno.Runtime;
+
 public abstract class Instruction
 {
     public int LineNumber { get; set; }

@@ -1,0 +1,16 @@
+# long.MinValue division and modulo by -1
+# In 64-bit signed integer, long.MinValue is -9223372036854775808
+set min_val = -9223372036854775807 - 1
+Cout(min_val)
+
+# Division by -1: should safely produce double 9223372036854775808 without OverflowException
+set div_res = min_val / -1
+Cout(div_res)
+
+# Modulo by -1: should safely produce 0 without OverflowException
+set mod_res = min_val % -1
+Cout(mod_res)
+
+# Normal negative divisions
+Cout(-10 / -1)
+Cout(-10 % -1)

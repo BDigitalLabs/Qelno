@@ -1,8 +1,8 @@
 set x = 10
-cout x
+Cout(x)
 set x = 20
-cout x
+Cout(x)
 x = 30
-cout x
+Cout(x)
 x = x + 5
-cout x
+Cout(x)

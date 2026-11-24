@@ -5,10 +5,10 @@ def fact(n)
     return n * fact(n - 1)
 end
 
-cout fact(0)
-cout fact(1)
-cout fact(5)
-cout fact(6)
+Cout(fact(0))
+Cout(fact(1))
+Cout(fact(5))
+Cout(fact(6))
 
 def fib(n)
     if n <= 0
@@ -19,7 +19,7 @@ def fib(n)
     return fib(n - 1) + fib(n - 2)
 end
 
-cout fib(0)
-cout fib(1)
-cout fib(6)
-cout fib(7)
+Cout(fib(0))
+Cout(fib(1))
+Cout(fib(6))
+Cout(fib(7))

@@ -1,0 +1,20 @@
+# Test literal float steps and negative steps with bound hoisting
+for i = 1.5 to 4.5 step 1.0
+    Cout(i)
+end
+
+for j = 10 to 4 step -2
+    Cout(j)
+end
+
+# Test large number of iterations (performance sanity check)
+set total = 0
+for k = 1 to 1000
+    total = total + k
+end
+Cout(total)
+
+# Test negative start with positive step
+for m = -3 to 1
+    Cout(m)
+end

@@ -41,7 +41,7 @@ def build_project():
 
     try:
         result = subprocess.run(
-            ["dotnet", "build", "--nologo"],
+            ["dotnet", "build", "--nologo", "--no-restore"],
             cwd=PROJECT_DIR,
             capture_output=True,
             text=True,
@@ -81,7 +81,7 @@ def run_test(test_file):
             expected_stderr_file.read_text()
         )
 
-    expected_exitcode = 0
+    expected_exitcode = 1 if expected_stderr_file.exists() else 0
 
     if expected_exitcode_file.exists():
         try:

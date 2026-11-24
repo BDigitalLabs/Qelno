@@ -1,0 +1,8 @@
+set big = 9007199254740993
+Cout(big)
+Cout(big + 1)
+Cout(big + 2)
+set diff = big + 10 - big
+Cout(diff)
+set mul = 1000000000 * 1000000000
+Cout(mul)

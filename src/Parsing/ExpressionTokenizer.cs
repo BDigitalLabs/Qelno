@@ -1,4 +1,6 @@
-using System.Collections.Generic;
+namespace Qelno.Parsing;
+
+using Qelno.Core;
 
 public static class ExpressionTokenizer
 {
@@ -174,6 +176,10 @@ public static class ExpressionTokenizer
                 i++;
                 while (i < source.Length && source[i] != quoteChar)
                 {
+                    if (source[i] == '\\' && i + 1 < source.Length)
+                    {
+                        i++;
+                    }
                     i++;
                 }
                 if (i >= source.Length)
@@ -210,7 +216,11 @@ public static class ExpressionTokenizer
                         char c = source[j];
                         if (inString != '\0')
                         {
-                            if (c == inString) inString = '\0';
+                            if (c == '\\' && j + 1 < source.Length)
+                            {
+                                j++;
+                            }
+                            else if (c == inString) inString = '\0';
                         }
                         else if (c == '"' || c == '\'')
                         {
@@ -248,7 +258,11 @@ public static class ExpressionTokenizer
                         char c = source[j];
                         if (inString != '\0')
                         {
-                            if (c == inString) inString = '\0';
+                            if (c == '\\' && j + 1 < source.Length)
+                            {
+                                j++;
+                            }
+                            else if (c == inString) inString = '\0';
                         }
                         else if (c == '"' || c == '\'')
                         {
@@ -273,6 +287,47 @@ public static class ExpressionTokenizer
                     expectingOperand = false;
                     continue;
                 }
+            }
+            // Array literal: [...]
+            else if (current == '[')
+            {
+                int bracketDepth = 1;
+                int j = i + 1;
+                char inString = '\0';
+
+                while (j < source.Length && bracketDepth > 0)
+                {
+                    char c = source[j];
+                    if (inString != '\0')
+                    {
+                        if (c == '\\' && j + 1 < source.Length)
+                        {
+                            j++;
+                        }
+                        else if (c == inString) inString = '\0';
+                    }
+                    else if (c == '"' || c == '\'')
+                    {
+                        inString = c;
+                    }
+                    else if (c == '[')
+                    {
+                        bracketDepth++;
+                    }
+                    else if (c == ']')
+                    {
+                        bracketDepth--;
+                    }
+                    j++;
+                }
+
+                if (bracketDepth != 0)
+                    return (InterpreterResult.InvalidSyntax, source);
+
+                tokens.Add(source[tokenStart..j]);
+                i = j;
+                expectingOperand = false;
+                continue;
             }
             else
             {

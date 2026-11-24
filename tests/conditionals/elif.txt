@@ -2,11 +2,11 @@ set score = 75
 
 if score >= 85
     set a = "Excellent"
-    cout a
+    Cout(a)
 elif score >= 60
     set b = "Passed"
-    cout b
+    Cout(b)
 else
     set c = "Failed"
-    cout c
+    Cout(c)
 end

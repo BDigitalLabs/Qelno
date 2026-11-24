@@ -1,4 +1,7 @@
-using System;
+namespace Qelno.CLI;
+
+using Qelno.Core;
+using Qelno.Runtime;
 
 public static class ErrorPrinter
 {
@@ -53,6 +56,11 @@ public static class ErrorPrinter
             InterpreterResult.InvalidParameterCount =>
                 !string.IsNullOrEmpty(subject) ? $"Invalid parameter count for function: '{subject}'" : "Invalid parameter count.",
 
+            InterpreterResult.CallDepthExceeded =>
+                !string.IsNullOrEmpty(subject)
+                    ? $"Maximum call depth ({ExecutionContext.MaxCallDepth}) exceeded while calling '{subject}'."
+                    : $"Maximum call depth ({ExecutionContext.MaxCallDepth}) exceeded.",
+
             _ => "An unknown error occurred."
         };
 
@@ -61,7 +69,7 @@ public static class ErrorPrinter
         string prefix = lineNumber.HasValue ? $"Error [Line {lineNumber.Value}]" : "Error";
         Console.Error.WriteLine($"{prefix} | {message}");
 
-        Console.ForegroundColor = ConsoleColor.White;
+        Console.ResetColor();
     }
 
     private static string FormatSubjectAndDetails(string title, string? subject, string? details)

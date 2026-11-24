@@ -1,45 +1,45 @@
 set add_mul = 2+3*4
-cout add_mul
+Cout(add_mul)
 
 set power = 2**3**2
-cout power
+Cout(power)
 
 set subtraction = 10-3-2
-cout subtraction
+Cout(subtraction)
 
 set div_mul = 20/5*2
-cout div_mul
+Cout(div_mul)
 
 set modulo = 10%3
-cout modulo
+Cout(modulo)
 
 set negative_multiplication = 10*-2
-cout negative_multiplication
+Cout(negative_multiplication)
 
 set subtract_negative = 5--2
-cout subtract_negative
+Cout(subtract_negative)
 
 set decimal = 2.5+1.5
-cout decimal
+Cout(decimal)
 
 set parentheses = (2+3)*4
-cout parentheses
+Cout(parentheses)
 
 set nested_parentheses = 2*(3+(4*5))
-cout nested_parentheses
+Cout(nested_parentheses)
 
 set negative_power = (-2)**2
-cout negative_power
+Cout(negative_power)
 
 set unary_power = -2**2
-cout unary_power
+Cout(unary_power)
 
 set abs_test = Abs(-5)
-cout abs_test
+Cout(abs_test)
 
 set sqrt_test = Sqrt(81)
-cout sqrt_test
+Cout(sqrt_test)
 
 set base = 7
 set variable_expression = base+5
-cout variable_expression
+Cout(variable_expression)

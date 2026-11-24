@@ -1,14 +1,14 @@
 set plain_text = Hello
-cout plain_text
+Cout(plain_text)
 
 set quoted_text = "Hello World"
-cout quoted_text
+Cout(quoted_text)
 
 set operator_text = "hello + world"
-cout operator_text
+Cout(operator_text)
 
 set bool_true = true
-cout bool_true
+Cout(bool_true)
 
 set bool_false = false
-cout bool_false
+Cout(bool_false)

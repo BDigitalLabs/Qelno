@@ -1,10 +1,10 @@
 set a = "Should not execute"
-cout a
+Cout(a)
 
 if true
-    cout "First"
+    Cout("First")
 else
-    cout "Second"
+    Cout("Second")
 else
-    cout "Third"
+    Cout("Third")
 end

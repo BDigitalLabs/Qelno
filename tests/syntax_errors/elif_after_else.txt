@@ -1,7 +1,7 @@
 if false
-    cout "First"
+    Cout("First")
 else
-    cout "Second"
+    Cout("Second")
 elif true
-    cout "Third"
+    Cout("Third")
 end

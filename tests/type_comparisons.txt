@@ -1,0 +1,56 @@
+# String lexicographical comparisons
+Cout("apple" < "banana")
+Cout("banana" > "apple")
+Cout("apple" <= "apple")
+Cout("apple" >= "apple")
+Cout("banana" <= "apple")
+Cout("apple" >= "banana")
+
+# Prefix comparisons
+Cout("cat" < "caterpillar")
+Cout("caterpillar" > "cat")
+
+# Case sensitive comparison (ASCII: 'A' < 'a')
+Cout("Apple" < "apple")
+Cout("apple" > "Apple")
+
+# Array structural equality
+set a1 = [1, 2, 3]
+set a2 = [1, 2, 3]
+set a3 = [1, 2, 4]
+set a4 = [1, 2]
+
+Cout(a1 == a2)
+Cout(a1 != a2)
+Cout(a1 == a3)
+Cout(a1 != a3)
+Cout(a1 == a4)
+Cout(a1 != a4)
+
+# Empty array equality
+set empty1 = []
+set empty2 = []
+Cout(empty1 == empty2)
+Cout(empty1 != empty2)
+Cout(empty1 == a1)
+
+# Nested array equality
+set nested1 = [1, [2, 3]]
+set nested2 = [1, [2, 3]]
+set nested3 = [1, [2, 4]]
+Cout(nested1 == nested2)
+Cout(nested1 == nested3)
+Cout(nested1 != nested3)
+
+# Array with strings
+set str_arr1 = ["hello", "world"]
+set str_arr2 = ["hello", "world"]
+set str_arr3 = ["hello", "there"]
+Cout(str_arr1 == str_arr2)
+Cout(str_arr1 == str_arr3)
+
+# Type mismatch equality (should be false for ==, true for !=)
+Cout([1, 2] == 1)
+Cout([1, 2] != 1)
+Cout([1, 2] == "string")
+Cout([1, 2] != "string")
