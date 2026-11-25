@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag (e.g. v0.6.0 - leave empty to use current branch/tag)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            os: windows-latest
+            archive_name: qelno-windows-x64.zip
+          - rid: linux-x64
+            os: ubuntu-latest
+            archive_name: qelno-linux-x64.tar.gz
+          - rid: osx-arm64
+            os: macos-latest
+            archive_name: qelno-macos-arm64.tar.gz
+          - rid: osx-x64
+            os: macos-13
+            archive_name: qelno-macos-x64.tar.gz
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish self-contained single-file binary
+        run: |
+          dotnet publish Qelno.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -o ./dist
+
+      - name: Bundle licenses and archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item LICENSE.txt ./dist/
+          Copy-Item NOTICE.txt ./dist/
+          Copy-Item -Recurse third_party_licenses ./dist/
+          Compress-Archive -Path ./dist/* -DestinationPath ${{ matrix.archive_name }}
+
+      - name: Bundle licenses, set executable permissions, and archive (Linux & macOS)
+        if: runner.os != 'Windows'
+        run: |
+          cp LICENSE.txt NOTICE.txt ./dist/
+          cp -r third_party_licenses ./dist/
+          chmod +x ./dist/Qelno
+          tar -czvf ${{ matrix.archive_name }} -C ./dist .
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: asset-${{ matrix.rid }}
+          path: ${{ matrix.archive_name }}
+          retention-days: 1
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: asset-*
+          merge-multiple: true
+          path: ./release-assets
+
+      - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          name: Release ${{ github.event.inputs.tag_name || github.ref_name }}
+          files: ./release-assets/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
